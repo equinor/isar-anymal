@@ -1,0 +1,81 @@
+name: Deploy to Staging
+
+concurrency:
+  group: staging-concurrency
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-push-latest-release-image-to-ghcr:
+    name: Build and push latest release image to github container registry
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: ghcr.io
+      image_name: ${{ github.repository }}
+      tag: "${{ github.event.release.tag_name }}"
+      secondary_tag: latest
+      path_to_dockerfile: Dockerfile.Isar
+      path_to_context: .
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
+      registry_username: ${{ github.actor }}
+
+  build-and-push-latest-release-image-to-aurora-prod-registry:
+    name: Build and push latest release image to aurora prod registry
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: auroraprodacr.azurecr.io
+      image_name: robotics/isar-anymal
+      tag: "${{ github.event.release.tag_name }}"
+      secondary_tag: latest
+      path_to_dockerfile: Dockerfile.Isar
+      path_to_context: .
+    secrets:
+      registry_password: ${{ secrets.ROBOTICS_AURORAPRODACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_AURORAPRODACR_USERNAME }}
+
+  build-and-push-latest-release-ads-image-to-aurora-prod-registry:
+    name: Build and push latest release ads image to aurora prod registry
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: auroraprodacr.azurecr.io
+      image_name: robotics/ads-api
+      tag: "${{ github.event.release.tag_name }}"
+      secondary_tag: latest
+      path_to_dockerfile: ads_api/Dockerfile
+      path_to_context: ads_api
+    secrets:
+      registry_password: ${{ secrets.ROBOTICS_AURORAPRODACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_AURORAPRODACR_USERNAME }}
+      anymal_download_password: ${{ secrets.ANYMAL_DOWNLOAD_PASSWORD }}
+      anymal_download_username: ${{ secrets.ANYMAL_DOWNLOAD_USER_NAME }}
+
+  deploy:
+    name: Update deployment in Staging
+    needs: [build-and-push-latest-release-image-to-aurora-prod-registry, build-and-push-latest-release-ads-image-to-aurora-prod-registry]
+    uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
+    with:
+      environment: staging
+      registry: auroraprodacr.azurecr.io
+      image_name: robotics/isar-anymal
+      tag: ${{ github.event.release.tag_name }}
+      author_name: ${{ github.event.release.author.login }}
+      infrastructure_repository: equinor/robotics-infrastructure
+    secrets:
+      deploy_key: ${{ secrets.ROBOTICS_INFRASTRUCTURE_DEPLOY_KEY }}

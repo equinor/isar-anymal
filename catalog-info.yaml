@@ -1,0 +1,43 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: isar-anymal
+  description: ISAR Robot implementation for the four-legged ANYmal robot delivered by ANYbotics. 
+  annotations:
+    github.com/project-slug: equinor/isar-anymal
+    github.com/team-slug: equinor/eq-robot-developer
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/eq-robot-developer
+  system: system:default/flotilla
+  dependsOn:
+    - component:default/isar
+    - component:default/anymal-api
+    - component:default/data-navigator-api
+
+---
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: anymal-api
+  description: ANYbotics provided API for control of robot.
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/eq-robot-developer
+  system: system:default/flotilla
+
+---
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: data-navigator-api
+  description: ANYbotics provided API for retrieval of inspection results. 
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/eq-robot-developer
+  system: system:default/flotilla

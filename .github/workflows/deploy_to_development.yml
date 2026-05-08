@@ -1,0 +1,96 @@
+name: Deploy to Development
+
+concurrency:
+  group: development-concurrency
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  get-short-sha:
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: get-tag
+        run: |
+          SHA_SHORT=$(echo ${{ github.sha }} | cut -c1-8)
+          echo "tag=$SHA_SHORT" >> "$GITHUB_OUTPUT"
+
+  build-and-push-dev-image-to-ghcr:
+    name: Build and push dev image to github container registry
+    needs: get-short-sha
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: ghcr.io
+      image_name: ${{ github.repository }}
+      tag: "dev.${{ needs.get-short-sha.outputs.tag }}"
+      secondary_tag: dev
+      path_to_dockerfile: Dockerfile.Isar
+      path_to_context: .
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
+      registry_username: ${{ github.actor }}
+
+  build-and-push-dev-image-to-aurora-dev-registry:
+    name: Build and push dev image to github container registry
+    needs: get-short-sha
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: auroradevacr.azurecr.io
+      image_name: robotics/isar-anymal
+      tag: ${{ needs.get-short-sha.outputs.tag }}
+      secondary_tag: dev
+      path_to_dockerfile: Dockerfile.Isar
+      path_to_context: .
+    secrets:
+      registry_password: ${{ secrets.ROBOTICS_AURORADEVACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_AURORADEVACR_USERNAME }}
+
+  build-and-push-ads-image-to-aurora-dev-registry:
+    name: Build and push ads image to aurora dev registry
+    needs: get-short-sha
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      registry: auroradevacr.azurecr.io
+      image_name: robotics/ads-api
+      tag: ${{ needs.get-short-sha.outputs.tag }}
+      secondary_tag: dev
+      path_to_dockerfile: ads_api/Dockerfile
+      path_to_context: ads_api
+    secrets:
+      registry_password: ${{ secrets.ROBOTICS_AURORADEVACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_AURORADEVACR_USERNAME }}
+      anymal_download_password: ${{ secrets.ANYMAL_DOWNLOAD_PASSWORD }}
+      anymal_download_username: ${{ secrets.ANYMAL_DOWNLOAD_USER_NAME }}
+
+  deploy:
+    name: Update deployment in Development
+    needs: [get-short-sha, build-and-push-dev-image-to-aurora-dev-registry, build-and-push-ads-image-to-aurora-dev-registry]
+    uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
+    with:
+      environment: development
+      registry: auroradevacr.azurecr.io
+      image_name: robotics/isar-anymal
+      tag: ${{ needs.get-short-sha.outputs.tag }}
+      author_email: ${{ github.event.head_commit.author.email }}
+      author_name: ${{ github.event.head_commit.author.name }}
+      infrastructure_repository: equinor/robotics-infrastructure
+    secrets:
+      deploy_key: ${{ secrets.ROBOTICS_INFRASTRUCTURE_DEPLOY_KEY }}

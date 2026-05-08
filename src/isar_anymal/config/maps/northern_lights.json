@@ -1,0 +1,95 @@
+{
+    "name": "northern_lights",
+    "map_from": {
+        "name": "northern_lights_robot",
+        "reference_positions": {
+            "positions": [
+                {
+                    "x": -27.1,
+                    "y": -122,
+                    "z": -2.09,
+                    "frame": {
+                        "name": "robot"
+                    }
+                },
+                {
+                    "x": 167,
+                    "y": -4.01,
+                    "z": 0.798,
+                    "frame": {
+                        "name": "robot"
+                    }
+                },
+                {
+                    "x": 77.7,
+                    "y": 55.9,
+                    "z": -0.0693,
+                    "frame": {
+                        "name": "robot"
+                    }
+                }
+            ],
+            "frame": {
+                "name": "robot"
+            }
+        },
+        "frame": {
+            "name": "robot"
+        }
+    },
+    "map_to": {
+        "name": "northern_lights_asset",
+        "reference_positions": {
+            "positions": [
+                {
+                    "x": 149.866,
+                    "y": 114.862,
+                    "z": 103.155,
+                    "frame": {
+                        "name": "asset"
+                    }
+                },
+                {
+                    "x": 344.003,
+                    "y": 233.360,
+                    "z": 105.154,
+                    "frame": {
+                        "name": "asset"
+                    }
+                },
+                {
+                    "x": 254.736,
+                    "y": 293.067,
+                    "z": 105.002,
+                    "frame": {
+                        "name": "asset"
+                    }
+                }
+            ],
+            "frame": {
+                "name": "asset"
+            }
+        },
+        "frame": {
+            "name": "asset"
+        },
+        "bounds": {
+            "position1": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "frame": {
+                    "name": "asset"
+                }
+            },
+            "position2": {
+                "x": 1000,
+                "y": 1000,
+                "z": 1000,
+                "frame": {
+                    "name": "asset"
+                }
+            }
+        }
+    }
+}

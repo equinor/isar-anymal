@@ -1,0 +1,48 @@
+name: Test and lint python package
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: equinor/armada/.github/workflows/test_and_lint_python_package.yml@main
+    permissions:
+      contents: read
+    with:
+      python-versions: '["3.14"]'
+      run-black: true
+      run-mypy: true
+      run-ruff: true
+      run-isort: false
+      run-tests: false
+
+  test:
+    # Tests are run separately from the reusable lint workflow because
+    # some tests require private test data downloaded from Azure Blob
+    # Storage. The secret cannot be passed through the reusable workflow.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b #v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Test with pytest
+        run: uv run --frozen pytest
+        env:
+          AZURE_TEST_DATA_SAS_URL: ${{ secrets.AZURE_TEST_DATA_SAS_URL }}

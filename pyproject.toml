@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=64.0", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isar-anymal"
+authors = [{ name = "Equinor ASA", email = "fg_robots_dev@equinor.com" }]
+description = "Integration and Supervisory control of Autonomous Robots - ANYmal implementation"
+readme = "README.md"
+requires-python = ">=3.14"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "alitra",
+    "isar>=2.1.2",
+    "numpy",
+    "opentelemetry-exporter-otlp>=1.38.0",
+    "protobuf",
+    "pydantic-settings",
+    "pydantic",
+    "requests"
+]
+dynamic = ["version"]
+
+[project.urls]
+repository = "https://github.com/equinor/isar-anymal.git"
+
+[project.optional-dependencies]
+dev = [
+    "azure-storage-blob",
+    "black",
+    "isort",
+    "mypy",
+    "pytest-dotenv",
+    "pytest-mock",
+    "pytest",
+    "ruff",
+]
+
+[tool.uv.sources]
+isar = { path = "../isar", editable = true }
+
+[tool.setuptools_scm]
+# This section is empty but required for dynamic versioning.
+
+[tool.setuptools.package-data]
+"*" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+log_cli = true
+markers = [
+    "requires_private_test_data: tests requiring proprietary test data downloaded from Azure Blob Storage",
+]
+
+[tool.mypy]
+no_strict_optional = true
+no_site_packages = true
+ignore_missing_imports = true
+exclude = ["build"]
+files = ["src", "tests"]
+
+[tool.isort]
+include_trailing_comma = true
+line_length = 88
+multi_line_output = 3
+use_parentheses = true
+
+[tool.black]
+line_length = 88

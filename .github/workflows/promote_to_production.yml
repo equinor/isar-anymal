@@ -1,0 +1,67 @@
+name: Promote to Production
+
+permissions:
+  contents: read
+  pull-requests: read
+  packages: write
+
+# Only one workflow in a concurrency group may run at a time
+concurrency:
+  group: production-concurrency
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+
+jobs:
+  get_staging_version:
+    name: Get version from staging
+    outputs:
+      versionTag: ${{ steps.get_version_tag.outputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infrastructure
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6
+        with:
+          ref: main
+          repository: equinor/robotics-infrastructure
+          ssh-key: ${{ secrets.ROBOTICS_INFRASTRUCTURE_DEPLOY_KEY }}
+
+      - name: Get Isar-Anymal version in staging
+        id: get_version_tag
+        run: |
+          LINE_NUMBERS=($(grep -n "auroraprodacr.azurecr.io/robotics/isar-anymal" "k8s_kustomize/overlays/staging/kustomization.yaml" | cut -d ':' -f 1))
+          largest_version_int=0
+          largest_version_tag=
+          for line_number in "${LINE_NUMBERS[@]}"
+          do
+              TAG_LINE_NUMBER=$((line_number+1))
+              version_tag=$(sed -n "${TAG_LINE_NUMBER}p" k8s_kustomize/overlays/staging/kustomization.yaml  |  cut --delimiter=":" --fields=2)
+              version_int=$(echo "$version_tag" | tr -d '.' | tr -d '\n' | tr -d '\r' | tr -d 'v')
+              if [[ "$version_int" -gt "$largest_version_int" ]]; then
+                  largest_version_tag=$version_tag
+                  largest_version_int=$version_int
+              fi
+          done
+          echo "tag=$largest_version_tag" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Update deployment in Production
+    needs: get_staging_version
+    uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
+    strategy:
+      max-parallel: 1
+      matrix:
+        include:
+          - image_name: robotics/isar-anymal
+          - image_name: robotics/ads-api
+    with:
+      environment: production
+      tag: ${{ needs.get_staging_version.outputs.versionTag }}
+      registry: auroraprodacr.azurecr.io
+      image_name: ${{ matrix.image_name }}
+      author_name: ${{ github.actor }}
+      infrastructure_repository: equinor/robotics-infrastructure
+    secrets:
+      deploy_key: ${{ secrets.ROBOTICS_INFRASTRUCTURE_DEPLOY_KEY }}
+

@@ -1,0 +1,67 @@
+services:
+  isar-anymal:
+    container_name: isar-anymal
+    platform: linux/amd64
+    build:
+      context: ./
+      dockerfile: Dockerfile.Isar
+      args:
+        - ANYMAL_DOWNLOAD_USER_NAME=$ANYMAL_DOWNLOAD_USER_NAME
+      secrets:
+        - ANYMAL_DOWNLOAD_PASSWORD_SECRET
+    ports:
+      - "3000:3000"
+    environment:
+      - ISAR_MQTT_PASSWORD=${ISAR_MQTT_PASSWORD}
+      - ISAR_RUN_MISSION_BY_TASK=False
+      - ISAR_ROBOT_NAME=${ISAR_ROBOT_NAME:-ANYmal}
+      - ISAR_ROBOT_PACKAGE=${ISAR_ROBOT_PACKAGE:-isar_anymal}
+      - ISAR_PLANT_SHORT_NAME=${ISAR_PLANT_SHORT_NAME:-KAA}
+      - ISAR_PLANT_NAME=${ISAR_PLANT_NAME:-Kårstø}
+      - ISAR_PLANT_CODE=${ISAR_PLANT_CODE:-1320}
+      - ISAR_ISAR_ID=${ISAR_ISAR_ID:-495c22ba-b122-438b-9a4c-997412ef0f47}
+      - ISAR_UPLOAD_INSPECTIONS_ASYNC=True
+      - ISAR_API_HOST_VIEWED_EXTERNALLY=0.0.0.0
+      - ISAR_MQTT_ENABLED=${ISAR_MQTT_ENABLED:-true}
+      - ISAR_MQTT_HOST=0.0.0.0
+      - ISAR_MQTT_PORT=1883 # When running against the simulator the Flotilla broker must be switched to 1884
+      - ANYMAL_ROBOT_NAME=${ANYMAL_ROBOT_NAME:-d194}
+      - ANYMAL_SERVER_URL=${ANYMAL_SERVER_URL:-http://localhost:50051}
+      - ANYMAL_MAP_NAME=${ANYMAL_MAP_NAME:-klab_compressor}
+      - ANYMAL_API_URL=${ANYMAL_API_URL:-https://api.anymal.com}
+      - ANYMAL_API_EMAIL=${ANYMAL_API_EMAIL}
+      - ANYMAL_API_PASSWORD=${ANYMAL_API_PASSWORD}
+    # network_mode: "host"
+    depends_on:
+      ads-api:
+        condition: service_healthy
+    volumes:
+      - ${HOME}/ANYmal/Environments/KLab/environments/:/app/ANYmal/Environments/environments/:rw
+      - ${HOME}/ANYmal/Environments/KLab/missions/:/app/ANYmal/Environments/missions/:rw
+    tty: true
+  ads-api:
+    container_name: ads-api
+    platform: linux/amd64
+    build:
+      context: ./ads_api
+      dockerfile: Dockerfile
+      args:
+        - ANYMAL_DOWNLOAD_USER_NAME=$ANYMAL_DOWNLOAD_USER_NAME
+      secrets:
+        - ANYMAL_DOWNLOAD_PASSWORD_SECRET
+    environment:
+      - SERVER_URL=${ANYMAL_SERVER_URL:-http://localhost:50051}
+      - CREDENTIALS_CLI_CRT=${CREDENTIALS_CLI_CRT}
+      - CREDENTIALS_CLI_PRIVATE_KEY=${CREDENTIALS_CLI_PRIVATE_KEY}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8081/healthz" ]
+      interval: 10s
+      timeout: 2s
+      retries: 20
+    tty: true
+
+secrets:
+  ANYMAL_DOWNLOAD_PASSWORD_SECRET:
+    file: password.env

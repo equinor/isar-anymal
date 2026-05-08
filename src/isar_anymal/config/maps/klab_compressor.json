@@ -1,0 +1,95 @@
+{
+  "name": "klab_compressor",
+  "map_from": {
+    "name": "klab_compressor_robot",
+    "reference_positions": {
+      "positions": [
+        {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "frame": {
+            "name": "robot"
+          }
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1,
+          "frame": {
+            "name": "robot"
+          }
+        },
+        {
+          "x": 2,
+          "y": 2,
+          "z": 2,
+          "frame": {
+            "name": "robot"
+          }
+        }
+      ],
+      "frame": {
+        "name": "robot"
+      }
+    },
+    "frame": {
+      "name": "robot"
+    }
+  },
+  "map_to": {
+    "name": "klab_compressor_asset",
+    "reference_positions": {
+      "positions": [
+        {
+          "x": 20249.48,
+          "y": 5247.046,
+          "z": 14.5,
+          "frame": {
+            "name": "asset"
+          }
+        },
+        {
+          "x": 20250.48,
+          "y": 5248.046,
+          "z": 15.5,
+          "frame": {
+            "name": "asset"
+          }
+        },
+        {
+          "x": 20251.48,
+          "y": 5249.046,
+          "z": 16.5,
+          "frame": {
+            "name": "asset"
+          }
+        }
+      ],
+      "frame": {
+        "name": "asset"
+      }
+    },
+    "frame": {
+      "name": "asset"
+    },
+    "bounds": {
+      "position1": {
+        "x": -10000,
+        "y": -10000,
+        "z": -10000,
+        "frame": {
+          "name": "asset"
+        }
+      },
+      "position2": {
+        "x": 10000,
+        "y": 10000,
+        "z": 10000,
+        "frame": {
+          "name": "asset"
+        }
+      }
+    }
+  }
+}
