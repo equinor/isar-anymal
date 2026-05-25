@@ -24,34 +24,34 @@ from isar_anymal.robot.api.anymal_api.enums import (
 
 
 class LeaseControlResponseDto(BaseModel):
-    lease_id: str = Field(alias="leaseId")
+    lease_id: str | None = Field(alias="leaseId", default=None)
     status: ServiceCallStatus = Field(alias="status")
-    message: str = Field(alias="message")
+    message: str | None = Field(alias="message", default=None)
 
 
 class ReleaseControlResponseDto(BaseModel):
     status: ServiceCallStatus = Field(alias="status")
-    message: str = Field(alias="message")
+    message: str | None = Field(alias="message", default=None)
 
 
 class Header(BaseModel):
     timestamp: str = Field(alias="timestamp")
     status: ANYmalServiceCallStatus = Field(alias="status")
-    message: str = Field(alias="message")
+    message: str | None = Field(alias="message", default=None)
 
 
 class GetUserInteractionModeResponseDto(BaseModel):
-    header: Header = Field(alias="header")
+    header: Header | None = Field(alias="header", default=None)
     user_interaction_mode: UserInteractionMode = Field(alias="userInteractionMode")
 
 
 class SetUserInteractionModeResponseDto(BaseModel):
-    header: Header = Field(alias="header")
+    header: Header | None = Field(alias="header", default=None)
 
 
 class ProtectiveStopResponseDto(BaseModel):
     status: ServiceCallStatus = Field(alias="status")
-    message: str = Field(alias="message")
+    message: str | None = Field(alias="message", default=None)
 
 
 class ControlMissionResponseDto(BaseModel):
@@ -59,7 +59,7 @@ class ControlMissionResponseDto(BaseModel):
     control_mission_status: ControlMissionStatus = Field(alias="controlMissionStatus")
     timestamp: str = Field(alias="timestamp")
     run_uid: str = Field(alias="runUid")
-    message: str = Field(alias="message")
+    message: str | None = Field(alias="message", default=None)
 
 
 class BatteryStateDto(BaseModel):
@@ -148,11 +148,11 @@ class ImageDto(BaseModel):
     height: float = Field(alias="height")
     encoding: str = Field(alias="encoding")
     step: float = Field(alias="step")
-    data: str = Field(alias="data")
+    data: str | None = Field(alias="data", default=None)
 
 
 class VisualMeasurementDto(BaseModel):
-    image: ImageDto = Field(alias="image")
+    image: ImageDto | None = Field(alias="image", default=None)
 
 
 class ThermalImageDto(BaseModel):
@@ -162,19 +162,22 @@ class ThermalImageDto(BaseModel):
 
 
 class ThermalMeasurementDto(BaseModel):
-    thermal_image: str = Field(alias="thermalImage")
+    thermal_image: ThermalImageDto | None = Field(alias="thermalImage", default=None)
+    rgb_image: ImageDto | None = Field(alias="rgbImage", default=None)
+    rgb_pose: PoseDto | None = Field(alias="rgbPose", default=None)
 
 
 class AudioDataDto(BaseModel):
     sampling_rate: float = Field(alias="samplingRate")
     channels: int = Field(alias="channels")
     depth: float = Field(alias="depth")
-    data: str = Field(alias="data")
+    data: str | None = Field(alias="data", default=None)
     duration: float = Field(alias="duration")
 
 
 class AuditiveMeasurementDto(BaseModel):
-    audio: AudioDataDto = Field(alias="audio")
+    fans_shutoff: bool = Field(alias="fansShutoff")
+    audio: AudioDataDto | None = Field(alias="audio", default=None)
 
 
 class AudioVideoParametersDto(BaseModel):
@@ -189,13 +192,19 @@ class VideoMeasurementDto(BaseModel):
     camera_type: str = Field(alias="cameraType")
     digest: str = Field(alias="digest")
     file_size: str = Field(alias="fileSize")
+    duration: float = Field(alias="duration")
     frame_rate: float = Field(alias="frameRate")
     width: float = Field(alias="width")
     height: float = Field(alias="height")
     file_type: str = Field(alias="fileType")
-    video_params: AudioVideoParametersDto = Field(alias="videoParameters")
-    audio_params: AudioVideoParametersDto = Field(alias="audioParameters")
-    video_data: str = Field(alias="videoData")
+    fans_shutoff: bool = Field(alias="fansShutoff")
+    video_params: AudioVideoParametersDto | None = Field(
+        alias="videoParams", default=None
+    )
+    audio_params: AudioVideoParametersDto | None = Field(
+        alias="audioParams", default=None
+    )
+    video_data: str | None = Field(alias="videoData", default=None)
 
 
 class FloatRangeDto(BaseModel):
@@ -213,10 +222,10 @@ class ConcentrationThresholdsDto(BaseModel):
 class ConcentrationSensorPropertiesDto(BaseModel):
     unit: str = Field(alias="unit")
     substance: str = Field(alias="substance")
-    measurement_range: FloatRangeDto = Field(alias="measurementRange")
-    low_thresholds: ConcentrationThresholdsDto | None = Field(
-        alias="lowThresholds", default=None
+    measurement_range: FloatRangeDto | None = Field(
+        alias="measurementRange", default=None
     )
+    low_thresholds: ConcentrationThresholdsDto = Field(alias="lowThresholds")
     high_thresholds: ConcentrationThresholdsDto = Field(alias="highThresholds")
 
 
@@ -227,8 +236,32 @@ class ConcentrationMeasurementDto(BaseModel):
     )
 
 
-class AcousticImageMeasurementDto(BaseModel):
+class Size2dDto(BaseModel):
+    width: float = Field(alias="width")
+    height: float = Field(alias="height")
+
+
+class RectangleDto(BaseModel):
+    x: float = Field(alias="x")
+    y: float = Field(alias="y")
+    width: float = Field(alias="width")
+    height: float = Field(alias="height")
+
+
+class AcousticImagingRoiDto(BaseModel):
+    rectangle: RectangleDto = Field(alias="rectangle")
+    image_size: Size2dDto = Field(alias="imageSize")
+
+
+class AcousticImageDto(BaseModel):
     image: ImageDto = Field(alias="image")
+    frequency_range: FloatRangeDto = Field(alias="frequencyRange")
+    roi: AcousticImagingRoiDto = Field(alias="roi")
+
+
+class AcousticImageMeasurementDto(BaseModel):
+    fans_shutoff: bool = Field(alias="fansShutoff")
+    acoustic_image: AcousticImageDto | None = Field(alias="acousticImage", default=None)
 
 
 class InspectionMeasurementDto(BaseModel):
@@ -252,9 +285,18 @@ class ThermalHotspotInterpretationDto(BaseModel):
     measured_temperature_type: MeasuredTemperatureType = Field(
         alias="measuredTemperatureType"
     )
-    colorized_image: ImageDto = Field(alias="colorizedImage")
+    colorized_image: ImageDto | None = Field(alias="colorizedImage", default=None)
     result: ResultInterpretation = Field(alias="result")
-    normal_operating_range: FloatRangeDto = Field(alias="normalOperatingRange")
+    normal_operating_range: FloatRangeDto | None = Field(
+        alias="normalOperatingRange", default=None
+    )
+    median_temperature: float = Field(alias="medianTemperature")
+    roi_diameter: float = Field(alias="roiDiameter")
+    emissivity: float = Field(alias="emissivity")
+    ambient_temperature: float = Field(alias="ambientTemperature")
+    ambient_relative_humidity: float = Field(alias="ambientRelativeHumidity")
+    distance_to_asset: float = Field(alias="distanceToAsset")
+    atmospheric_transmission: float = Field(alias="atmosphericTransmission")
 
 
 class AuditiveSampleCaptureInterpretationDto(BaseModel):
@@ -269,11 +311,14 @@ class AuditiveFrequencyAnalysisConfigurationDto(BaseModel):
     use_signal_harmonics: bool = Field(alias="useSignalHarmonics")
     use_filter_harmonics: bool = Field(alias="useFilterHarmonics")
     is_ultrasonic: bool = Field(alias="isUltrasonic")
+    bin_tolerance: float = Field(alias="binTolerance")
+    harmonics_to_use: float = Field(alias="harmonicsToUse")
+    analysis_window: float = Field(alias="analysisWindow")
 
 
 class AuditiveFrequencyAnalysisInterpretationDto(BaseModel):
     confidence: float = Field(alias="confidence")
-    power_spectrum: ImageDto = Field(alias="powerSpectrum")
+    power_spectrum: ImageDto | None = Field(alias="powerSpectrum", default=None)
     signal_to_noise_ratio: float = Field(alias="signalToNoiseRatio")
     configuration: AuditiveFrequencyAnalysisConfigurationDto = Field(
         alias="configuration"
@@ -292,14 +337,21 @@ class VisualReadoutInterpretationDto(BaseModel):
     confidence: float = Field(alias="confidence")
     estimate: float = Field(alias="estimate")
     estimate_units: str = Field(alias="estimateUnits")
-    detection_image: ImageDto = Field(alias="detectionImage")
+    detection_image: ImageDto | None = Field(alias="detectionImage", default=None)
     asset_type: str = Field(alias="assetType")
     result: ResultInterpretation = Field(alias="result")
+    confidence_threshold: float = Field(alias="confidenceThreshold")
+    normal_operating_range: FloatRangeDto | None = Field(
+        alias="normalOperatingRange", default=None
+    )
+    measurement_range: FloatRangeDto | None = Field(
+        alias="measurementRange", default=None
+    )
 
 
 class VisualObjectDetectionInterpretationDto(BaseModel):
     confidence: float = Field(alias="confidence")
-    detection_image: ImageDto = Field(alias="detectionImage")
+    detection_image: ImageDto | None = Field(alias="detectionImage", default=None)
     asset_type: str = Field(alias="assetType")
     result: ResultInterpretation = Field(alias="result")
     confidence_threshold: float = Field(alias="confidenceThreshold")
@@ -327,18 +379,19 @@ class LeakDetectionConfigurationDto(BaseModel):
     snr_value_threshold: float = Field(alias="snrValueThreshold")
 
 
-class AcousticImageDto(BaseModel):
-    image: ImageDto = Field(alias="image")
-    frequency_range: FloatRangeDto = Field(alias="frequencyRange")
-
-
 class MechanicalInspectionConfigurationDto(BaseModel):
-    base_frequency: float = Field(alias="baseFrequency")
     snr_value_threshold: float = Field(alias="snrValueThreshold")
-    frequency_expected: bool = Field(alias="frequencyExpected")
 
 
 class LeakDetectionInterpretationDto(BaseModel):
+    # DEPRECATED in spec but still required on the wire
+    sound_pressure_level_at_sensor_in_db: float = Field(
+        alias="soundPressureLevelAtSensorInDb"
+    )
+    signal_to_noise_ratio_in_db: float = Field(alias="signalToNoiseRatioInDb")
+    leakq_scale_at_source: float = Field(alias="leakqScaleAtSource")
+    leakq_threshold: float = Field(alias="leakqThreshold")
+    thumbnail_image: ImageDto | None = Field(alias="thumbnailImage", default=None)
     result: ResultInterpretation = Field(alias="result")
     configuration: LeakDetectionConfigurationDto = Field(alias="configuration")
     distance_to_source: float = Field(alias="distanceToSource")
@@ -360,6 +413,13 @@ class MechanicalInspectionInterpretationDto(BaseModel):
     sound_pressure_level_at_source: float = Field(alias="soundPressureLevelAtSource")
     snr_value: float = Field(alias="snrValue")
     thumbnail_acoustic_image: AcousticImageDto = Field(alias="thumbnailAcousticImage")
+    sound_pressure_level_at_sensor: float = Field(alias="soundPressureLevelAtSensor")
+    sound_pressure_level_beamformed_min: float = Field(
+        alias="soundPressureLevelBeamformedMin"
+    )
+    sound_pressure_level_beamformed_max: float = Field(
+        alias="soundPressureLevelBeamformedMax"
+    )
 
 
 class PartialDischargeDetectionConfigurationDto(BaseModel):
@@ -368,6 +428,13 @@ class PartialDischargeDetectionConfigurationDto(BaseModel):
 
 
 class PartialDischargeDetectionInterpretationDto(BaseModel):
+    # DEPRECATED in spec but still required on the wire
+    sound_pressure_level_at_sensor_in_db: float = Field(
+        alias="soundPressureLevelAtSensorInDb"
+    )
+    discharge_pulses_per_minute: float = Field(alias="dischargePulsesPerMinute")
+    discharge_pulses_threshold: float = Field(alias="dischargePulsesThreshold")
+    thumbnail_image: ImageDto | None = Field(alias="thumbnailImage", default=None)
     result: ResultInterpretation = Field(alias="result")
     configuration: PartialDischargeDetectionConfigurationDto = Field(
         alias="configuration"
