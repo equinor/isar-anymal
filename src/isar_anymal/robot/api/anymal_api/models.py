@@ -79,31 +79,31 @@ class MainBodyStateDto(BaseModel):
 
 
 class PositionDto(BaseModel):
-    x: float = Field(alias="x")
-    y: float = Field(alias="y")
-    z: float = Field(alias="z")
+    x: float | None = Field(alias="x", default=None)
+    y: float | None = Field(alias="y", default=None)
+    z: float | None = Field(alias="z", default=None)
 
 
 class OrientationDto(BaseModel):
-    qx: float = Field(alias="qx")
-    qy: float = Field(alias="qy")
-    qz: float = Field(alias="qz")
-    qw: float = Field(alias="qw")
+    qx: float | None = Field(alias="qx", default=None)
+    qy: float | None = Field(alias="qy", default=None)
+    qz: float | None = Field(alias="qz", default=None)
+    qw: float | None = Field(alias="qw", default=None)
 
 
 class PoseValueDto(BaseModel):
-    position: PositionDto = Field(alias="position")
-    orientation: OrientationDto = Field(alias="orientation")
+    position: PositionDto | None = Field(alias="position", default=None)
+    orientation: OrientationDto | None = Field(alias="orientation", default=None)
 
 
 class PoseDto(BaseModel):
-    frame_id: str = Field(alias="frameId")
-    value: PoseValueDto = Field(alias="value")
+    frame_id: str | None = Field(alias="frameId", default=None)
+    value: PoseValueDto | None = Field(alias="value", default=None)
 
 
 class PoseAtTimeDto(BaseModel):
-    timestamp: str = Field(alias="timestamp")
-    pose: PoseDto = Field(alias="pose")
+    timestamp: str | None = Field(alias="timestamp", default=None)
+    pose: PoseDto | None = Field(alias="pose", default=None)
 
 
 class ProtectiveStopStatusDto(BaseModel):
@@ -132,7 +132,7 @@ class TaskProgressDto(BaseModel):
 class TaskSummaryDto(BaseModel):
     task_id: str = Field(alias="taskId")
     status: ANYmalTaskStatus = Field(alias="status")
-    progress: TaskProgressDto = Field(alias="progress")
+    progress: TaskProgressDto | None = Field(alias="progress", default=None)
     outcome: Outcome = Field(alias="outcome")
     result_interpretation: ResultInterpretation = Field(alias="resultInterpretation")
 
@@ -221,7 +221,7 @@ class ConcentrationSensorPropertiesDto(BaseModel):
 
 
 class ConcentrationMeasurementDto(BaseModel):
-    value: float = Field(alias="value")
+    value: float | None = Field(alias="value", default=None)
     sensor_properties: ConcentrationSensorPropertiesDto = Field(
         alias="sensorProperties"
     )
@@ -408,25 +408,27 @@ class EventBaseModel(BaseModel):
 
 class PhysicalConditionEventDto(EventBaseModel):
     timestamp: str = Field(alias="timestamp")
-    metadata: RobotMetaDataDto = Field(alias="metadata")
-    battery_state: BatteryStateDto = Field(alias="batteryState")
-    main_body_state: MainBodyStateDto = Field(alias="mainBodyState")
+    metadata: RobotMetaDataDto | None = Field(alias="metadata", default=None)
+    battery_state: BatteryStateDto | None = Field(alias="batteryState", default=None)
+    main_body_state: MainBodyStateDto | None = Field(
+        alias="mainBodyState", default=None
+    )
 
 
 class StateEventDto(EventBaseModel):
     timestamp: str = Field(alias="timestamp")
-    pose: PoseAtTimeDto = Field(alias="pose")
+    pose: PoseAtTimeDto | None = Field(alias="pose", default=None)
 
 
 class ControlStatusEventDto(EventBaseModel):
     timestamp: str = Field(alias="timestamp")
-    metadata: RobotMetaDataDto = Field(alias="metadata")
+    metadata: RobotMetaDataDto | None = Field(alias="metadata", default=None)
     control_authority_status: ControlAuthorityStatusDto | None = Field(
         alias="controlAuthorityStatus", default=None
     )
     is_power_cut: bool = Field(alias="isPowerCut")
-    protective_stop_status: ProtectiveStopStatusDto = Field(
-        alias="protectiveStopStatus"
+    protective_stop_status: ProtectiveStopStatusDto | None = Field(
+        alias="protectiveStopStatus", default=None
     )
     user_interaction_mode: UserInteractionMode | None = Field(
         alias="userInteractionMode", default=None
@@ -435,15 +437,19 @@ class ControlStatusEventDto(EventBaseModel):
 
 class MissionEventDto(EventBaseModel):
     timestamp: str = Field(alias="timestamp")
-    metadata: MissionMetadataDto = Field(alias="metadata")
-    mission_summary: MissionSummaryDto = Field(alias="missionSummary")
+    metadata: MissionMetadataDto | None = Field(alias="metadata", default=None)
+    mission_summary: MissionSummaryDto | None = Field(
+        alias="missionSummary", default=None
+    )
 
 
 class InspectionEventDto(EventBaseModel):
     timestamp: str = Field(alias="timestamp")
     asset_id: str = Field(alias="assetId")
-    metadata: MissionMetadataDto = Field(alias="metadata")
-    measurement: InspectionMeasurementDto = Field(alias="measurement")
+    metadata: MissionMetadataDto | None = Field(alias="metadata", default=None)
+    measurement: InspectionMeasurementDto | None = Field(
+        alias="measurement", default=None
+    )
     interpretations: List[InspectionInterpretationDto] = Field(alias="interpretations")
     task_run_uid: str = Field(alias="taskRunUid")
     environment_id: str = Field(alias="environmentId")
