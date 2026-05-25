@@ -171,6 +171,9 @@ data/*
 # Private test data (downloaded from Azure Blob Storage)
 tests/robot/test_data/
 
+# Manual exploratory test scripts and their output (live robot required)
+tests/tmp/
+
 # Credentials
 credentials/*
 
