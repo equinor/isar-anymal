@@ -50,6 +50,31 @@ def test_create_inspection() -> None:
     )
 
 
+def test_create_inspection_forwards_analysis_types() -> None:
+    robot_pose = Pose(
+        position=Position(0, 0, 0, Frame("asset")),
+        orientation=Orientation(x=0, y=0, z=0, w=1, frame=Frame("asset")),
+        frame=Frame("asset"),
+    )
+
+    inspection = _create_blob_inspection(
+        metadata_type=ImageMetadata,
+        inspection_type=Image,
+        robot_pose=robot_pose,
+        target_position=robot_pose.position,
+        file_type="jpg",
+        task=TakeImage(
+            target=Position(x=1, y=1, z=1, frame=Frame("asset")),
+            robot_pose=robot_pose,
+            analysis_types=["fencilla"],
+        ),
+        file_bytes=b"Some file bytes",
+        video_duration=None,
+    )
+
+    assert inspection.metadata.analysis_types == ["fencilla"]
+
+
 @pytest.mark.requires_private_test_data
 def test_concentration_monitoring_inspection() -> None:
     test_data_dir: Path = Path(__file__).parent.parent / "test_data"

@@ -369,6 +369,7 @@ def _create_blob_inspection(
 
     inspection_metadata.tag_id = task.tag_id
     inspection_metadata.inspection_description = task.inspection_description
+    inspection_metadata.analysis_types = task.analysis_types
 
     if video_duration is not None and isinstance(
         inspection_metadata, (VideoMetadata, ThermalVideoMetadata, AudioMetadata)
@@ -400,6 +401,7 @@ def _create_value_inspection(
 
     inspection_metadata.tag_id = task.tag_id
     inspection_metadata.inspection_description = task.inspection_description
+    inspection_metadata.analysis_types = task.analysis_types
 
     return inspection_type(
         id=task.inspection_id, unit=unit, value=value, metadata=inspection_metadata
