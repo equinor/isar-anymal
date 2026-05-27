@@ -178,6 +178,14 @@ class API:
                 "height": task.zoom.objectHeight if task.zoom else 10,
                 "type": task_type,
                 "name": task.id,
+                "detection_type": (
+                    task.detection_type.value
+                    if hasattr(task, "detection_type")
+                    else None
+                ),
+                "frequency_from": getattr(task, "frequency_from", None),
+                "frequency_to": getattr(task, "frequency_to", None),
+                "snr_value_threshold": getattr(task, "snr_value_threshold", None),
             },
             "poo": {
                 "pos": {
@@ -203,6 +211,8 @@ class API:
             task_type = "thermal"
         elif task.type == TaskTypes.TakeCO2Measurement:
             task_type = "co2"
+        elif task.type == TaskTypes.TakeAcousticMeasurement:
+            task_type = "acoustic"
         else:
             error_description = f"Unsupported task type: {task.type}"
             logger.error(error_description)

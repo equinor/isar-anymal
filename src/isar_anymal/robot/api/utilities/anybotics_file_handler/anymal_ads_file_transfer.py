@@ -20,6 +20,7 @@ from isar_anymal.robot.api.ads_api.api import (
     get_file_through_ads_api,
 )
 from isar_anymal.robot.api.utilities.anybotics_file_handler.environment_utils import (
+    acoustic_inspection,
     nav_goal,
     nav_zone,
     relation,
@@ -226,6 +227,7 @@ class ANYmalADSFileTransfer:
                 "thermal": {"suffix": "VIT", "type_data": thermal_inspection},
                 "visual": {"suffix": "VIS", "type_data": visual_inspection},
                 "co2": {"suffix": "CO2", "type_data": visual_inspection},
+                "acoustic": {"suffix": "ACO", "type_data": acoustic_inspection},
             }
 
             poi_suffix = item_data[poi["type"]]["suffix"]
@@ -251,6 +253,12 @@ class ANYmalADSFileTransfer:
 
             if poi["type"] == "visual" and "height" in poi:
                 this_inspection["size"]["height"] = poi["height"]
+
+            if poi["type"] == "acoustic":
+                this_inspection["detection_type"] = poi["detection_type"]
+                this_inspection["frequency_from"] = poi["frequency_from"]
+                this_inspection["frequency_to"] = poi["frequency_to"]
+                this_inspection["snr_value_threshold"] = poi["snr_value_threshold"]
 
             adhoc_environment["objects"].append(this_inspection)
 
@@ -346,6 +354,13 @@ class ANYmalADSFileTransfer:
                 "plugin": "gas_inspection_behavior_plugins",
                 "action": "InspectAreaFromPose",
                 "mission_task": co2_measurement_task,
+            },
+            "acoustic": {
+                "task_prefix": "Inspect",
+                "item_suffix": "ACO",
+                "plugin": "acoustic_imaging_behavior_plugins",
+                "action": "Inspect",
+                "mission_task": inspection_task,
             },
             "dock": {
                 "task_prefix": "",

@@ -23,10 +23,14 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_hand
 from pytest_mock import MockerFixture
 from robot_interface.models.inspection.inspection import Image, ImageMetadata
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
-from robot_interface.models.mission.task import TakeImage
+from robot_interface.models.mission.task import (
+    AcousticDetectionType,
+    TakeAcousticMeasurement,
+    TakeImage,
+)
 from robot_interface.models.robots.battery_state import BatteryState
 
-from tests.robot.utilities import mock_subscribe_callback_functions
+from tests.robot.utilities import default_robot_pose, mock_subscribe_callback_functions
 
 
 def test_create_inspection() -> None:
@@ -48,6 +52,43 @@ def test_create_inspection() -> None:
         file_bytes=b"Some file bytes",
         video_duration=None,
     )
+
+
+def test_extract_task_type_acoustic() -> None:
+    task = TakeAcousticMeasurement(
+        target=Position(x=1, y=1, z=1, frame=Frame("asset")),
+        robot_pose=default_robot_pose(),
+        frequency_from=1000.0,
+        frequency_to=2000.0,
+        snr_value_threshold=3.0,
+        detection_type=AcousticDetectionType.leak,
+    )
+
+    assert API.extract_task_type(task) == "acoustic"
+
+
+def test_create_inspection_includes_acoustic_fields() -> None:
+    robot_pose = default_robot_pose()
+    task = TakeAcousticMeasurement(
+        target=Position(x=1, y=1, z=1, frame=Frame("asset")),
+        robot_pose=robot_pose,
+        frequency_from=1000.0,
+        frequency_to=2000.0,
+        snr_value_threshold=3.0,
+        detection_type=AcousticDetectionType.leak,
+    )
+
+    poi = API.create_inspection(
+        pose=robot_pose,
+        target_position=task.target,
+        task=task,
+        task_type="acoustic",
+    )["poi"]
+
+    assert poi["detection_type"] == "leak"
+    assert poi["frequency_from"] == 1000.0
+    assert poi["frequency_to"] == 2000.0
+    assert poi["snr_value_threshold"] == 3.0
 
 
 def test_create_inspection_forwards_analysis_types() -> None:

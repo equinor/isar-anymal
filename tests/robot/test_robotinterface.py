@@ -3,9 +3,11 @@ import pytest
 from pytest_mock import MockerFixture
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.task import (
-    TakeImage,
-    TakeCO2Measurement,
+    AcousticDetectionType,
     ReturnToHome,
+    TakeAcousticMeasurement,
+    TakeCO2Measurement,
+    TakeImage,
 )
 
 from isar_anymal import Robot
@@ -38,6 +40,14 @@ def test_that_initiate_mission_is_successful_for_a_normal_mission(
                 target=Position(0, 0, 0, frame=Frame("asset")),
             ),
             TakeCO2Measurement(robot_pose=default_robot_pose()),
+            TakeAcousticMeasurement(
+                robot_pose=default_robot_pose(),
+                target=Position(0, 0, 0, frame=Frame("asset")),
+                frequency_from=1000.0,
+                frequency_to=2000.0,
+                snr_value_threshold=3.0,
+                detection_type=AcousticDetectionType.leak,
+            ),
         ],
     )
 

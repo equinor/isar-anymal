@@ -10,6 +10,8 @@ from requests.models import Response
 from alitra import Position, Pose, Orientation, Frame, Transform
 
 from robot_interface.models.inspection.inspection import (
+    AcousticMeasurement,
+    AcousticMeasurementMetadata,
     InspectionMetadata,
     InspectionValue,
     GasMeasurementMetadata,
@@ -297,6 +299,20 @@ def _process_inspection_blob(
     #     file_type = "mp3"
     #     # We can also gather the sampling rate, depth and number of channels from the audio metadata
 
+    elif event.measurement.type == InspectionMeasurementType.IMT_ACOUSTIC_IMAGE:
+        # TODO(acoustic): implement IMT_ACOUSTIC_IMAGE blob retrieval.
+        # We do not yet know the SSE event shape for acoustic imaging from
+        # ANYbotics; a live IMT_ACOUSTIC_IMAGE capture is needed to confirm
+        # whether the blob is delivered inline on event.measurement.data
+        # (per AcousticImageMeasurementDto.acousticImage.image.data) or
+        # retrieved via the /data-navigator-api/inspections/raw-data
+        # endpoint as IMT_VISUAL does.
+        metadata_type = AcousticMeasurementMetadata
+        inspection_type = AcousticMeasurement
+        raise NotImplementedError(
+            "IMT_ACOUSTIC_IMAGE blob retrieval is not yet implemented"
+        )
+
     else:
         raise RobotRetrieveInspectionException(
             f"Unsupported inspection blob type {event.measurement.type} received"
@@ -343,6 +359,7 @@ def _is_blob_inspection(event) -> bool:
         or event.measurement.type == InspectionMeasurementType.IMT_VIDEO
         or event.measurement.type == InspectionMeasurementType.IMT_AUDITIVE
         or event.measurement.type == InspectionMeasurementType.IMT_THERMAL
+        or event.measurement.type == InspectionMeasurementType.IMT_ACOUSTIC_IMAGE
     )
 
 
