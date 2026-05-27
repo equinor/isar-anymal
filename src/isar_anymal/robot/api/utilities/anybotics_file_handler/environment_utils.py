@@ -88,6 +88,37 @@ parent: T1_1_navZone""",
     Loader=yaml.FullLoader,
 )
 
+acoustic_inspection = yaml.load(
+    """autopoint_type: full
+detection_type: "[detection_type]"
+electricity_cost: 0.0
+frame_id: map
+frequency_from: "[frequency_from]"
+frequency_to: "[frequency_to]"
+gas_cost: 0.0
+label: "[label]"
+name: "[name]"
+operating_conditions: DC
+operating_hours_per_year: 0.0
+pose:
+    header:
+        frame_id: map
+    pose:
+        orientation:
+            w: 1.0
+            x: 0.0
+            y: 0.0
+            z: 0.0
+        position:
+            x: 0
+            y: 0
+            z: 0
+power_ratio: 0.0
+snr_value_threshold: "[snr_value_threshold]"
+type: acoustic_imaging""",
+    Loader=yaml.FullLoader,
+)
+
 
 def set_coordinate(item, coordinate):
     item["pose"]["pose"]["position"]["x"] = coordinate[0]
