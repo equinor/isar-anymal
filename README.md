@@ -58,3 +58,9 @@ To update all dependencies to the latest versions:
 ```
 uv lock --upgrade
 ```
+
+Update all dependencies, dont include isar as a local package dependency
+
+```
+uv lock --upgrade --no-sources-package isar
+```
