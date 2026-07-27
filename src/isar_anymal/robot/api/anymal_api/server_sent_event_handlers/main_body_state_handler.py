@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from robot_interface.models.exceptions.robot_exceptions import RobotTelemetryException
 
@@ -12,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 class MainBodyStateHandler:
     def __init__(self) -> None:
-        self.relative_humidity: Optional[float] = None
-        self.differential_pressure: Optional[float] = None
-        self.temperature: Optional[float] = None
-        self.timestamp: Optional[str] = None
+        self.relative_humidity: float | None = None
+        self.differential_pressure: float | None = None
+        self.temperature: float | None = None
+        self.timestamp: str | None = None
 
         self.main_body_state_sse_handler: SSEHandler = SSEHandler()
 

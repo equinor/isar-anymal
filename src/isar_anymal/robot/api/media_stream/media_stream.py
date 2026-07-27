@@ -1,15 +1,13 @@
 import json
 import logging
 import time
-from typing import Optional
-
-from requests import Response, RequestException
+from threading import Thread
 from uuid import uuid4
+
+from requests import RequestException, Response
 
 from isar_anymal.config import settings
 from isar_anymal.robot.api.request_handler import RequestHandler
-
-from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,7 @@ logger = logging.getLogger(__name__)
 class MediaStream:
     def __init__(self, request_handler: RequestHandler) -> None:
         self.request_handler: RequestHandler = request_handler
-        self.activate_stream_thread: Optional[Thread] = None
+        self.activate_stream_thread: Thread | None = None
 
     def get_liveview_info(self) -> tuple[str, str]:
         # Get the liveview token, valid for 4 hours

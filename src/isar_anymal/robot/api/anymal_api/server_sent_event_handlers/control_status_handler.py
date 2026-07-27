@@ -1,4 +1,3 @@
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -9,12 +8,12 @@ from isar_anymal.robot.api.sse_handler import SSEHandler
 
 
 class ControlStatus(BaseModel):
-    client_name: Optional[str]
-    client_type: Optional[ClientType]
-    protective_stop_engaged: Optional[bool]
-    is_power_cut: Optional[bool]
-    user_interaction_mode: Optional[UserInteractionMode]
-    timestamp: Optional[str]
+    client_name: str | None
+    client_type: ClientType | None
+    protective_stop_engaged: bool | None
+    is_power_cut: bool | None
+    user_interaction_mode: UserInteractionMode | None
+    timestamp: str | None
 
 
 class ControlStatusHandler:

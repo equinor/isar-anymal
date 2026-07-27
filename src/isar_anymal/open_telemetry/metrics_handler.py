@@ -1,12 +1,11 @@
 import logging
-from typing import List
 
 from alitra import Pose
 from opentelemetry import metrics
-from opentelemetry.metrics import CallbackOptions, Observation, Meter
+from opentelemetry.metrics import CallbackOptions, Meter, Observation
 from robot_interface.models.exceptions.robot_exceptions import (
-    RobotTelemetryNoUpdateException,
     RobotException,
+    RobotTelemetryNoUpdateException,
     RobotTelemetryPoseException,
 )
 
@@ -23,7 +22,7 @@ class MetricsHandler:
         self.robot_name = robot_name
         self.isar_id = isar_id
 
-        self.meter: "Meter" = metrics.get_meter("isar.anymal")
+        self.meter: Meter = metrics.get_meter("isar.anymal")
         self._setup_observable_gauges()
 
     def _setup_observable_gauges(self) -> None:
@@ -65,8 +64,8 @@ class MetricsHandler:
             description="Current temperature of the robot main body",
         )
 
-    def _observe_robot_pose(self, _: CallbackOptions) -> List[Observation]:
-        observations: List[Observation] = []
+    def _observe_robot_pose(self, _: CallbackOptions) -> list[Observation]:
+        observations: list[Observation] = []
         try:
             pose: Pose = self.anymal_api.get_robot_pose()
         except RobotTelemetryPoseException, RobotException:
@@ -98,9 +97,9 @@ class MetricsHandler:
 
         return observations
 
-    def _observe_battery_level(self, _: CallbackOptions) -> List[Observation]:
+    def _observe_battery_level(self, _: CallbackOptions) -> list[Observation]:
         try:
-            observations: List[Observation] = [
+            observations: list[Observation] = [
                 Observation(
                     value=self.anymal_api.get_battery_level(),
                     attributes={"robot_name": self.robot_name, "isar_id": self.isar_id},
@@ -110,9 +109,9 @@ class MetricsHandler:
         except RobotTelemetryNoUpdateException, RobotException:
             return []
 
-    def _observe_battery_status(self, _: CallbackOptions) -> List[Observation]:
+    def _observe_battery_status(self, _: CallbackOptions) -> list[Observation]:
         try:
-            observations: List[Observation] = [
+            observations: list[Observation] = [
                 Observation(
                     value=BATTERY_STATUS_TO_INTEGER_MAPPING[
                         self.anymal_api.get_battery_status()
@@ -124,9 +123,9 @@ class MetricsHandler:
         except RobotTelemetryNoUpdateException, RobotException:
             return []
 
-    def _observe_relative_humidity(self, _: CallbackOptions) -> List[Observation]:
+    def _observe_relative_humidity(self, _: CallbackOptions) -> list[Observation]:
         try:
-            observations: List[Observation] = [
+            observations: list[Observation] = [
                 Observation(
                     value=self.anymal_api.get_relative_humidity(),
                     attributes={"robot_name": self.robot_name, "isar_id": self.isar_id},
@@ -136,9 +135,9 @@ class MetricsHandler:
         except RobotTelemetryNoUpdateException, RobotException:
             return []
 
-    def _observe_differential_pressure(self, _: CallbackOptions) -> List[Observation]:
+    def _observe_differential_pressure(self, _: CallbackOptions) -> list[Observation]:
         try:
-            observations: List[Observation] = [
+            observations: list[Observation] = [
                 Observation(
                     value=self.anymal_api.get_differential_pressure(),
                     attributes={"robot_name": self.robot_name, "isar_id": self.isar_id},
@@ -148,9 +147,9 @@ class MetricsHandler:
         except RobotTelemetryNoUpdateException, RobotException:
             return []
 
-    def _observe_temperature(self, _: CallbackOptions) -> List[Observation]:
+    def _observe_temperature(self, _: CallbackOptions) -> list[Observation]:
         try:
-            observations: List[Observation] = [
+            observations: list[Observation] = [
                 Observation(
                     value=self.anymal_api.get_temperature(),
                     attributes={"robot_name": self.robot_name, "isar_id": self.isar_id},

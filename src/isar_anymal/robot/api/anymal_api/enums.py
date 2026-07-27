@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Dict
 
 
 class ServiceCallStatus(str, Enum):
@@ -55,7 +54,7 @@ class BatteryStatus(str, Enum):
     UNRECOGNIZED = "UNRECOGNIZED"
 
 
-BATTERY_STATUS_TO_INTEGER_MAPPING: Dict[BatteryStatus, int] = {
+BATTERY_STATUS_TO_INTEGER_MAPPING: dict[BatteryStatus, int] = {
     BatteryStatus.BS_UNKNOWN: 0,
     BatteryStatus.BS_CHARGING: 1,
     BatteryStatus.BS_DISCHARGING: 2,

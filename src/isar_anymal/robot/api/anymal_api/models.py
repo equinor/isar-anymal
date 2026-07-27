@@ -1,25 +1,24 @@
-from typing import List, Union
 
 from pydantic import BaseModel, Field
 
 from isar_anymal.robot.api.anymal_api.enums import (
-    ANYmalServiceCallStatus,
-    BatteryStatus,
-    ControlMissionStatus,
-    ServiceCallStatus,
-    UserInteractionMode,
-    ClientType,
-    ProtectiveStopOrigin,
-    MissionType,
     ANYmalMissionStatus,
+    ANYmalServiceCallStatus,
     ANYmalTaskStatus,
-    Outcome,
-    ResultInterpretation,
-    InspectionMeasurementType,
+    BatteryStatus,
+    ClientType,
+    ControlMissionStatus,
     InspectionInterpretationType,
-    MeasuredTemperatureType,
-    SubstanceConcentrationLevel,
+    InspectionMeasurementType,
     InterpretationConfidenceLevel,
+    MeasuredTemperatureType,
+    MissionType,
+    Outcome,
+    ProtectiveStopOrigin,
+    ResultInterpretation,
+    ServiceCallStatus,
+    SubstanceConcentrationLevel,
+    UserInteractionMode,
 )
 
 
@@ -139,7 +138,7 @@ class TaskSummaryDto(BaseModel):
 
 class MissionSummaryDto(BaseModel):
     status: ANYmalMissionStatus = Field(alias="status")
-    task_summaries: List[TaskSummaryDto] = Field(alias="taskSummaries")
+    task_summaries: list[TaskSummaryDto] = Field(alias="taskSummaries")
     outcome: Outcome = Field(alias="outcome")
 
 
@@ -267,14 +266,7 @@ class AcousticImageMeasurementDto(BaseModel):
 class InspectionMeasurementDto(BaseModel):
     type: InspectionMeasurementType = Field(alias="type")
     sensor_pose: PoseDto = Field(alias="sensorPose")
-    data: Union[
-        ThermalMeasurementDto,
-        AuditiveMeasurementDto,
-        VisualMeasurementDto,
-        VideoMeasurementDto,
-        ConcentrationMeasurementDto,
-        AcousticImageMeasurementDto,
-    ]
+    data: ThermalMeasurementDto | AuditiveMeasurementDto | VisualMeasurementDto | VideoMeasurementDto | ConcentrationMeasurementDto | AcousticImageMeasurementDto
 
 
 class ThermalHotspotInterpretationDto(BaseModel):
@@ -304,8 +296,8 @@ class AuditiveSampleCaptureInterpretationDto(BaseModel):
 
 
 class AuditiveFrequencyAnalysisConfigurationDto(BaseModel):
-    desired_frequencies: List[float] = Field(alias="desiredFrequencies")
-    filter_frequencies: List[float] = Field(alias="filterFrequencies")
+    desired_frequencies: list[float] = Field(alias="desiredFrequencies")
+    filter_frequencies: list[float] = Field(alias="filterFrequencies")
     frequency_expected: bool = Field(alias="frequencyExpected")
     snr_value_threshold: float = Field(alias="snrValueThreshold")
     use_signal_harmonics: bool = Field(alias="useSignalHarmonics")
@@ -324,8 +316,8 @@ class AuditiveFrequencyAnalysisInterpretationDto(BaseModel):
         alias="configuration"
     )
     frequency_detected: bool = Field(alias="frequencyDetected")
-    fft_frequency: List[float] = Field(alias="fftFrequency")
-    fft_power: List[float] = Field(alias="fftPower")
+    fft_frequency: list[float] = Field(alias="fftFrequency")
+    fft_power: list[float] = Field(alias="fftPower")
     result: ResultInterpretation = Field(alias="result")
 
 
@@ -451,20 +443,7 @@ class PartialDischargeDetectionInterpretationDto(BaseModel):
 class InspectionInterpretationDto(BaseModel):
     type: InspectionInterpretationType = Field(alias="type")
     data: (
-        Union[
-            ThermalHotspotInterpretationDto,
-            AuditiveSampleCaptureInterpretationDto,
-            AuditiveFrequencyAnalysisInterpretationDto,
-            VisualFrameCaptureInterpretationDto,
-            VisualReadoutInterpretationDto,
-            VisualObjectDetectionInterpretationDto,
-            VideoInterpretationDto,
-            ConcentrationInterpretationDto,
-            AcousticImageFrameCaptureInterpretationDto,
-            LeakDetectionInterpretationDto,
-            MechanicalInspectionInterpretationDto,
-            PartialDischargeDetectionInterpretationDto,
-        ]
+        ThermalHotspotInterpretationDto | AuditiveSampleCaptureInterpretationDto | AuditiveFrequencyAnalysisInterpretationDto | VisualFrameCaptureInterpretationDto | VisualReadoutInterpretationDto | VisualObjectDetectionInterpretationDto | VideoInterpretationDto | ConcentrationInterpretationDto | AcousticImageFrameCaptureInterpretationDto | LeakDetectionInterpretationDto | MechanicalInspectionInterpretationDto | PartialDischargeDetectionInterpretationDto
         | None
     ) = Field(alias="data", default=None)
 
@@ -517,6 +496,6 @@ class InspectionEventDto(EventBaseModel):
     measurement: InspectionMeasurementDto | None = Field(
         alias="measurement", default=None
     )
-    interpretations: List[InspectionInterpretationDto] = Field(alias="interpretations")
+    interpretations: list[InspectionInterpretationDto] = Field(alias="interpretations")
     task_run_uid: str = Field(alias="taskRunUid")
     environment_id: str = Field(alias="environmentId")

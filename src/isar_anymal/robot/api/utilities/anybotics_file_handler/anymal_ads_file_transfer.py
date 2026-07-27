@@ -3,10 +3,9 @@ import json
 import logging
 import math
 import re
-import time
 import subprocess
+import time
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
 
 import numpy
 import yaml
@@ -16,8 +15,8 @@ from robot_interface.models.exceptions.robot_exceptions import (
 
 from isar_anymal.config.settings import settings
 from isar_anymal.robot.api.ads_api.api import (
-    send_file_through_ads_api,
     get_file_through_ads_api,
+    send_file_through_ads_api,
 )
 from isar_anymal.robot.api.utilities.anybotics_file_handler.environment_utils import (
     acoustic_inspection,
@@ -72,7 +71,7 @@ class ANYmalADSFileTransfer:
 
         self.adhoc_mission_filepath = False
 
-    def create_ad_hoc_inspections(self, inspections: List[Dict]):
+    def create_ad_hoc_inspections(self, inspections: list[dict]):
         # Fetch environment from robot
         environment_filepath: Path = self.get_environment_file_with_retry()
         # Fetch waypoints from robot
@@ -165,11 +164,11 @@ class ANYmalADSFileTransfer:
         return bck_environment_filepath
 
     def add_new_poi(
-        self, inspections: List[Dict], waypoint_filepath: Path
-    ) -> Tuple[str, List[Dict]]:
+        self, inspections: list[dict], waypoint_filepath: Path
+    ) -> tuple[str, list[dict]]:
 
-        adhoc_environment: Dict = copy.deepcopy(self.environment_cleaned)
-        mission_tasks: List[Dict] = []
+        adhoc_environment: dict = copy.deepcopy(self.environment_cleaned)
+        mission_tasks: list[dict] = []
 
         for idx, inspection in enumerate(inspections):
             poi = inspection["poi"]
@@ -501,7 +500,7 @@ class ANYmalADSFileTransfer:
         return True
 
     @staticmethod
-    def run_subprocess(command: str) -> Optional[str]:
+    def run_subprocess(command: str) -> str | None:
         try:
             result: subprocess.CompletedProcess = subprocess.run(
                 command, shell=True, text=True, capture_output=True, check=True
@@ -513,10 +512,10 @@ class ANYmalADSFileTransfer:
             return None
 
     def compute_nav_goal_on_waypoints(
-        self, waypoint_filepath: Path, robot_pose: Dict, target_position: Dict
+        self, waypoint_filepath: Path, robot_pose: dict, target_position: dict
     ):
         with open(waypoint_filepath, "r") as waypoint_file:
-            waypoints: Dict = json.load(waypoint_file)
+            waypoints: dict = json.load(waypoint_file)
 
         closest_position, closest_edge_nodes = self.find_closest_position_and_nodes(
             robot_pose=robot_pose, waypoints=waypoints
@@ -527,7 +526,7 @@ class ANYmalADSFileTransfer:
             )
         )
 
-        orientations: List[Dict] = [robot_pose["orientation"]]
+        orientations: list[dict] = [robot_pose["orientation"]]
 
         closest_position["x"] = float(closest_position["x"])
         closest_position["y"] = float(closest_position["y"])
@@ -537,8 +536,8 @@ class ANYmalADSFileTransfer:
 
     @staticmethod
     def adjust_height_coordinate_according_to_distance_to_edge(
-        closest_edge_nodes: List[Dict], closest_position: Dict
-    ) -> List[Dict]:
+        closest_edge_nodes: list[dict], closest_position: dict
+    ) -> list[dict]:
         # Compute height proportionally according to distance to each side of the edge
         if closest_edge_nodes[1]["x"] != closest_edge_nodes[0]["x"]:
             closest_position["z"] = closest_edge_nodes[0]["z"] + (
@@ -560,14 +559,14 @@ class ANYmalADSFileTransfer:
         return closest_edge_nodes
 
     def find_closest_position_and_nodes(
-        self, robot_pose: Dict, waypoints: Dict
-    ) -> Tuple[Optional[Dict], Optional[List]]:
+        self, robot_pose: dict, waypoints: dict
+    ) -> tuple[dict | None, list | None]:
         # Find the closest edge from the PoO
         min_dist: float = 0
-        closest_edge_nodes: Optional[List] = None
-        closest_position: Optional[Dict] = None
+        closest_edge_nodes: list | None = None
+        closest_position: dict | None = None
         for edge in waypoints["edges"]:
-            edge_nodes: List[Dict] = [
+            edge_nodes: list[dict] = [
                 self.find_waypoint_node(waypoints["nodes"], edge["start_node_id"]),
                 self.find_waypoint_node(waypoints["nodes"], edge["end_node_id"]),
             ]
@@ -581,7 +580,7 @@ class ANYmalADSFileTransfer:
         return closest_position, closest_edge_nodes
 
     @staticmethod
-    def find_waypoint_node(nodes, node_id: str) -> Dict:
+    def find_waypoint_node(nodes, node_id: str) -> dict:
         for node in nodes:
             if node["id"] == node_id:
                 return {
@@ -597,7 +596,7 @@ class ANYmalADSFileTransfer:
         raise RobotUnknownErrorException(error_description)
 
     @staticmethod
-    def compute_distance_to_edge(edge: List[Dict], point: Dict) -> Tuple[Dict, float]:
+    def compute_distance_to_edge(edge: list[dict], point: dict) -> tuple[dict, float]:
         # Differences between point and edge[0]
         A = point["x"] - edge[0]["x"]
         B = point["y"] - edge[0]["y"]
