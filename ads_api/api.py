@@ -5,9 +5,6 @@ from pathlib import Path
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
-from robot_interface.models.exceptions.robot_exceptions import (
-    RobotRetrieveDataException,
-)
 from settings.settings import settings
 from starlette.responses import FileResponse
 
@@ -175,13 +172,13 @@ def _get_file_from_agent(
                 f"incorrect number of files transmitted: {nb_file_transmitted}"
             )
             logger.error(error_description)
-            raise RobotRetrieveDataException(error_description)
+            raise Exception(error_description)  # noqa: TRY002
     else:
         error_description = (
             f"Error receiving file from {agent_pc}, not match found, cmd = {command}"
         )
         logger.error(error_description)
-        raise RobotRetrieveDataException(error_description)
+        raise Exception(error_description)  # noqa: TRY002
 
 
 def _send_file_to_agent(
