@@ -77,5 +77,8 @@ use_parentheses = true
 [tool.black]
 line_length = 88
 
+[tool.ruff]
+extend-exclude = ["ads_api"]
+
 [tool.ruff.lint]
 ignore = ["BLE001"]

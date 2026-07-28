@@ -11,9 +11,7 @@ class Settings(BaseSettings):
     SERVER_URL: str = Field(default="http://localhost:11314")
 
     # Credentials
-    CREDENTIALS_DIR: Optional[str] = Field(  # noqa: UP045
-        default="/home/ads-api/credentials/"
-    )
+    CREDENTIALS_DIR: Optional[str] = Field(default="/home/ads-api/credentials/")
     CREDENTIALS_CLI_CRT_FILE: str = Field(default="ads-cli.crt")
     CREDENTIALS_CLI_KEY_FILE: str = Field(default="ads-cli.pem")
 

@@ -1,8 +1,9 @@
 import re
 import subprocess
 from pathlib import Path
+from typing import List, Optional
 
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 from settings.settings import settings
@@ -10,7 +11,7 @@ from starlette.responses import FileResponse
 
 DATA_DIR: Path = Path(settings.ENVIRONMENT_FILE_WORKING_FOLDER)
 
-ADS_BASE_ARGS: list[str] = [
+ADS_BASE_ARGS: List[str] = [
     settings.ADS_COMMAND_PATH,
     "-s",
     settings.SERVER_URL,
@@ -27,7 +28,7 @@ api: FastAPI = FastAPI()
 class SendFileResponse(BaseModel):
     success: bool
     destination_path: str
-    error_description: str | None = None
+    error_description: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -45,11 +46,11 @@ def healthz() -> HealthResponse:
 
 @api.post("/send-file-to-robot-computer", response_model=SendFileResponse)
 async def send_file_to_agent(
-    file: UploadFile,
     computer: str = Form(...),
     destination_path: str = Form(...),
     robot_name: str = Form(...),
     prune: bool = Form(False),
+    file: UploadFile = File(...),
 ):
     _sanitize_computer_input(computer)
     _sanitize_robot_name_input(robot_name)
@@ -150,9 +151,9 @@ def _get_file_from_agent(
     robot_ip_alias: str = f"anymal-{robot_name}-{agent_pc}"
 
     # Regex to verify if the file request was successful
-    get_success_regex_pattern = "^[\\n\\r]*([1-9]+[0-9]*) files reported: manifest complete[\\n\\r]*.*[\\n\\r]*(.+) <- ([0-9A-F]{64}) \\(.+\\)[\\n\\r]*$"
+    get_success_regex_pattern = "^[\\n\\r]*([1-9]+[0-9]*) files reported: manifest complete[\\n\\r]*.*[\\n\\r]*(.+) <- ([0-9A-F]{64}) \(.+\)[\\n\\r]*$"
 
-    command: list[str] = _build_ads_get_command(
+    command: List[str] = _build_ads_get_command(
         robot_ip_alias=robot_ip_alias, src_path=src_path, dest_path=dest_path
     )
 
@@ -172,13 +173,13 @@ def _get_file_from_agent(
                 f"incorrect number of files transmitted: {nb_file_transmitted}"
             )
             logger.error(error_description)
-            raise Exception(error_description)  # noqa: TRY002
+            raise Exception(error_description)
     else:
         error_description = (
             f"Error receiving file from {agent_pc}, not match found, cmd = {command}"
         )
         logger.error(error_description)
-        raise Exception(error_description)  # noqa: TRY002
+        raise Exception(error_description)
 
 
 def _send_file_to_agent(
@@ -191,7 +192,7 @@ def _send_file_to_agent(
         f"^({re.escape(src_path)}.*) -> ([0-9A-F]{{64}})[\\n\\r]+({re.escape(robot_ip_alias)}):(.+) <- ([0-9A-F]{{64}})$"
     )
 
-    command: list[str] = _build_ads_send_command(
+    command: List[str] = _build_ads_send_command(
         src_path=src_path,
         dest_path=dest_path,
         robot_ip_alias=robot_ip_alias,
@@ -201,15 +202,18 @@ def _send_file_to_agent(
     logger.info(f"Command to be executed : {command}")
     match = _execute_ads_command_and_match_result(command, put_success_regex_pattern)
     if match:
-        _src_filename, hash_1, _agent, _dst_filename, hash_2 = match.groups()
-        return hash_1 == hash_2
+        src_filename, hash_1, agent, dst_filename, hash_2 = match.groups()
+        if hash_1 == hash_2:
+            return True
+        else:
+            return False
     else:
         return False
 
 
 def _build_ads_get_command(
     robot_ip_alias: str, src_path: str, dest_path: str
-) -> list[str]:
+) -> List[str]:
     return [*ADS_BASE_ARGS, "get", robot_ip_alias, src_path, dest_path]
 
 
@@ -218,22 +222,22 @@ def _build_ads_send_command(
     dest_path: str,
     robot_ip_alias: str,
     prune: bool = False,
-) -> list[str]:
-    command: list[str] = [*ADS_BASE_ARGS, "put", robot_ip_alias, src_path, dest_path]
+) -> List[str]:
+    command: List[str] = [*ADS_BASE_ARGS, "put", robot_ip_alias, src_path, dest_path]
     if prune:
         command.append("-P")
     return command
 
 
-def _execute_ads_command_and_match_result(command: list[str], reg_match: str):
-    result: str | None = _run_subprocess(command=command)
+def _execute_ads_command_and_match_result(command: List[str], reg_match: str):
+    result: Optional[str] = _run_subprocess(command=command)
     if result:
         return re.search(reg_match, result)
     else:
         return None
 
 
-def _validate_ads_command_structure(command: list[str]) -> None:
+def _validate_ads_command_structure(command: List[str]) -> None:
     if len(command) < len(ADS_BASE_ARGS) + 4:
         raise ValueError("Invalid ADS command: too few arguments")
 
@@ -254,11 +258,12 @@ def _validate_ads_command_structure(command: list[str]) -> None:
         raise ValueError(f"Invalid ADS command length for action {action}")
 
     # Validate optional flags
-    if len(command) == expected_max_length and command[-1] not in ALLOWED_ADS_OPTIONS:
-        raise ValueError(f"Invalid ADS option: {command[-1]}")
+    if len(command) == expected_max_length:
+        if command[-1] not in ALLOWED_ADS_OPTIONS:
+            raise ValueError(f"Invalid ADS option: {command[-1]}")
 
 
-def _run_subprocess(command: list[str]) -> str | None:
+def _run_subprocess(command: List[str]) -> Optional[str]:
     try:
         _validate_ads_command_structure(command)
         result: subprocess.CompletedProcess = subprocess.run(
