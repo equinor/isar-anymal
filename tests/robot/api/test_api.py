@@ -2,6 +2,11 @@ from pathlib import Path
 
 import pytest
 from alitra import Frame, Orientation, Pose, Position
+from pytest_mock import MockerFixture
+from robot_interface.models.inspection.inspection import Image, ImageMetadata
+from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
+from robot_interface.models.mission.task import Roi, TakeImage
+from robot_interface.models.robots.battery_state import BatteryState
 
 from isar_anymal.robot.api.anymal_api.enums import (
     ANYmalMissionStatus,
@@ -12,21 +17,15 @@ from isar_anymal.robot.api.anymal_api.enums import (
 )
 from isar_anymal.robot.api.anymal_api.models import (
     InspectionEventDto,
-    TaskSummaryDto,
     TaskProgressDto,
+    TaskSummaryDto,
 )
-from isar_anymal.robot.api.api import API
-from isar_anymal.robot.api.utilities.acoustic_roi import DEFAULT_ACOUSTIC_ROI
-from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     _create_blob_inspection,
 )
-from pytest_mock import MockerFixture
-from robot_interface.models.inspection.inspection import Image, ImageMetadata
-from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
-from robot_interface.models.mission.task import Roi, TakeImage
-from robot_interface.models.robots.battery_state import BatteryState
-
+from isar_anymal.robot.api.api import API
+from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
+from isar_anymal.robot.api.utilities.acoustic_roi import DEFAULT_ACOUSTIC_ROI
 from tests.robot.utilities import (
     build_acoustic_task,
     mock_subscribe_callback_functions,

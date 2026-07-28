@@ -3,7 +3,6 @@ import time
 
 import pytest
 
-
 from isar_anymal.robot.api import API
 from isar_anymal.robot.api.anymal_api.enums import UserInteractionMode
 

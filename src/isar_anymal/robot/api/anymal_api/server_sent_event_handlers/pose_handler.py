@@ -1,18 +1,16 @@
-from typing import Optional
+import logging
 
 from alitra import (
-    Pose,
-    Position,
     Frame,
     Orientation,
+    Pose,
+    Position,
     Transform,
 )
-import logging
 from robot_interface.models.exceptions.robot_exceptions import RobotTelemetryException
 
-
 from isar_anymal.config import settings
-from isar_anymal.robot.api.anymal_api.models import StateEventDto, PoseValueDto
+from isar_anymal.robot.api.anymal_api.models import PoseValueDto, StateEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.utilities import (
     import_transform_from_map_file,
 )
@@ -23,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 class PoseHandler:
     def __init__(self):
-        self.pose: Optional[Pose] = None
-        self.timestamp: Optional[str] = None
+        self.pose: Pose | None = None
+        self.timestamp: str | None = None
         self.pose_sse_handler: SSEHandler = SSEHandler()
         self.transform: Transform = import_transform_from_map_file()
 

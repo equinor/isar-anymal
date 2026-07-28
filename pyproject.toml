@@ -76,3 +76,6 @@ use_parentheses = true
 
 [tool.black]
 line_length = 88
+
+[tool.ruff.lint]
+ignore = ["BLE001"]

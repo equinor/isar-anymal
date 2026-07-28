@@ -1,5 +1,5 @@
-from alitra import Position, Frame
 import pytest
+from alitra import Frame, Position
 from pytest_mock import MockerFixture
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.task import (
@@ -12,10 +12,10 @@ from robot_interface.models.mission.task import (
 
 from isar_anymal import Robot
 from tests.robot.utilities import (
-    mock_subscribe_callback_functions,
+    default_robot_pose,
     mock_file_transfers,
     mock_request_handler_for_initiate_mission,
-    default_robot_pose,
+    mock_subscribe_callback_functions,
 )
 
 

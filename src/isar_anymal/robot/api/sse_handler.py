@@ -1,15 +1,17 @@
 import json
 import logging
 import time
+from collections.abc import Callable
 from threading import Thread
-from typing import Callable, Optional, Type, TypeVar
+from typing import TypeVar
+
 from pydantic import ValidationError
 from requests import JSONDecodeError, RequestException, Response
 from requests.exceptions import ChunkedEncodingError
 from urllib3.exceptions import ProtocolError
 
-from isar_anymal.robot.api.request_handler import RequestHandler
 from isar_anymal.robot.api.anymal_api.models import EventBaseModel
+from isar_anymal.robot.api.request_handler import RequestHandler
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +21,20 @@ TEventModel = TypeVar("TEventModel", bound=EventBaseModel)
 class SSEHandler:
     def __init__(self):
         self.request_handler: RequestHandler = RequestHandler()
-        self.sse_listening_thread: Optional[Thread] = None
+        self.sse_listening_thread: Thread | None = None
 
     def activate_sse_listening_thread(
         self,
         url: str,
         on_event: Callable[[TEventModel], None],
-        model_type: Type[TEventModel],
+        model_type: type[TEventModel],
     ) -> None:
-        if self.sse_listening_thread is not None:
-            if self.sse_listening_thread.is_alive():
-                logger.warning("SSE listening thread is already active")
-                return
+        if (
+            self.sse_listening_thread is not None
+            and self.sse_listening_thread.is_alive()
+        ):
+            logger.warning("SSE listening thread is already active")
+            return
 
         self.sse_listening_thread = Thread(
             target=self.subscribe_to_sse,
@@ -62,7 +66,7 @@ class SSEHandler:
 
             try:
                 for line in response.iter_lines():
-                    event: Optional[TEventModel] = (
+                    event: TEventModel | None = (
                         self._attempt_to_decode_sse_message_to_model(
                             line=line,
                             model_type=model_type,
@@ -87,7 +91,7 @@ class SSEHandler:
     @staticmethod
     def _attempt_to_decode_sse_message_to_model(
         line: str, model_type: TEventModel
-    ) -> Optional[TEventModel]:
+    ) -> TEventModel | None:
         if not line:
             return None
 

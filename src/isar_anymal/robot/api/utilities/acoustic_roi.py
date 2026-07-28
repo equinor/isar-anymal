@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, Optional
 
 from robot_interface.models.mission.task import Roi
 
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 # (x in [968, 2905], y in [1513, 4539]). DEFAULT_ACOUSTIC_ROI doubles as the
 # validation envelope in resolve_acoustic_roi: out-of-bounds ROIs are replaced
 # with this default rather than rejected.
-DEFAULT_ACOUSTIC_ROI: Dict[str, int] = {
+DEFAULT_ACOUSTIC_ROI: dict[str, int] = {
     "x": 968,
     "y": 1513,
     "width": 1937,
@@ -20,7 +19,7 @@ DEFAULT_ACOUSTIC_ROI: Dict[str, int] = {
 }
 
 
-def resolve_acoustic_roi(task_roi: Optional[Roi]) -> Dict[str, int]:
+def resolve_acoustic_roi(task_roi: Roi | None) -> dict[str, int]:
     if task_roi is None:
         return dict(DEFAULT_ACOUSTIC_ROI)
 

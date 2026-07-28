@@ -1,13 +1,13 @@
 import logging
-from typing import Type, TypeVar
+from typing import TypeVar
 
-from pydantic import ValidationError, BaseModel
-from requests import Response, JSONDecodeError, RequestException
+from pydantic import BaseModel, ValidationError
+from requests import JSONDecodeError, RequestException, Response
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotAPIException,
     RobotCommunicationException,
-    RobotUnknownErrorException,
     RobotNoMissionRunningException,
+    RobotUnknownErrorException,
 )
 
 from isar_anymal.config.settings import settings
@@ -19,10 +19,10 @@ from isar_anymal.robot.api.anymal_api.enums import (
 )
 from isar_anymal.robot.api.anymal_api.models import (
     ControlMissionResponseDto,
-    LeaseControlResponseDto,
-    ReleaseControlResponseDto,
     GetUserInteractionModeResponseDto,
+    LeaseControlResponseDto,
     ProtectiveStopResponseDto,
+    ReleaseControlResponseDto,
 )
 from isar_anymal.robot.api.request_handler import RequestHandler
 
@@ -245,7 +245,9 @@ class ANYmalAPI:
         return resume_response
 
 
-def _parse_response_into_model(response: Response, model_type: Type[TModel]) -> TModel:
+def _parse_response_into_model[TModel: BaseModel](
+    response: Response, model_type: type[TModel]
+) -> TModel:
     try:
         payload: dict = response.json()
     except JSONDecodeError as e:

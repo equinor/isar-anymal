@@ -5,6 +5,10 @@ import pytest
 from alitra import Frame, Position
 from pytest_mock import MockerFixture
 from requests import Response
+from robot_interface.models.exceptions.robot_exceptions import (
+    RobotRetrieveInspectionException,
+)
+from robot_interface.models.inspection.inspection import AcousticMeasurement
 
 from isar_anymal.robot.api.anymal_api.models import InspectionEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
@@ -12,11 +16,6 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_hand
     _process_acoustic_inspection,
 )
 from isar_anymal.robot.api.request_handler import RequestHandler
-from robot_interface.models.exceptions.robot_exceptions import (
-    RobotRetrieveInspectionException,
-)
-from robot_interface.models.inspection.inspection import AcousticMeasurement
-
 from tests.robot.utilities import build_acoustic_task, default_robot_pose
 
 

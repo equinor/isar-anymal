@@ -1,9 +1,14 @@
 from pathlib import Path
 from unittest.mock import Mock
 
-from alitra import Pose, Position, Orientation, Frame
+from alitra import Frame, Orientation, Pose, Position
 from pytest_mock import MockerFixture
 from requests import Response
+from robot_interface.models.mission.task import (
+    AcousticDetectionType,
+    Roi,
+    TakeAcousticMeasurement,
+)
 
 from isar_anymal import Robot
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.battery_handler import (
@@ -24,11 +29,6 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.pose_handler im
 from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.utilities.anybotics_file_handler.anymal_ads_file_transfer import (
     ANYmalADSFileTransfer,
-)
-from robot_interface.models.mission.task import (
-    AcousticDetectionType,
-    Roi,
-    TakeAcousticMeasurement,
 )
 
 

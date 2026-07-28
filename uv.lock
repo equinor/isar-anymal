@@ -587,6 +587,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/84/4c/5cb475ae7f624286d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/32/de5b43322191e94ea59bf6a3a3a4f8a31157a5e8b84ed1486bc4520355b7/isar-2.1.4-py3-none-any.whl", hash = "sha256:56909abb5e97075ab106e89eba69b70fcad017b18fcb9ad0ca82117de738e649", size = 121930, upload-time = "2026-06-08T07:35:54.03Z" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "isar-anymal"

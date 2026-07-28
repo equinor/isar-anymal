@@ -1,29 +1,33 @@
 import logging
-from datetime import datetime
-from typing import Deque
-
 import time
 from collections import deque
-from typing import Type, Tuple, Optional, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+
+from alitra import Frame, Orientation, Pose, Position, Transform
 from requests import RequestException
 from requests.models import Response
-from alitra import Position, Pose, Orientation, Frame, Transform
-
+from robot_interface.models.exceptions.robot_exceptions import (
+    RobotRetrieveInspectionException,
+)
 from robot_interface.models.inspection.inspection import (
     AcousticMeasurement,
     AcousticMeasurementMetadata,
+    AudioMetadata,
+    CO2Measurement,
+    GasMeasurementMetadata,
+    Image,
+    ImageMetadata,
+    Inspection,
     InspectionMetadata,
     InspectionValue,
-    GasMeasurementMetadata,
-    CO2Measurement,
-    Inspection,
-    ImageMetadata,
-    Image,
-    VideoMetadata,
     ThermalVideoMetadata,
-    AudioMetadata,
+    VideoMetadata,
 )
+from robot_interface.models.mission.mission import Mission
+from robot_interface.models.mission.task import TASKS
 
+from isar_anymal.config import settings
 from isar_anymal.robot.api.anymal_api.enums import (
     InspectionInterpretationType,
     InspectionMeasurementType,
@@ -37,23 +41,16 @@ from isar_anymal.robot.api.anymal_api.models import (
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.utilities import (
     import_transform_from_map_file,
 )
-from isar_anymal.robot.api.sse_handler import SSEHandler
-from robot_interface.models.exceptions.robot_exceptions import (
-    RobotRetrieveInspectionException,
-)
-from robot_interface.models.mission.mission import Mission
-from robot_interface.models.mission.task import TASKS
-
-from isar_anymal.config import settings
 from isar_anymal.robot.api.request_handler import RequestHandler
+from isar_anymal.robot.api.sse_handler import SSEHandler
 
 logger = logging.getLogger(__name__)
 
 
 class InspectionHandler:
     def __init__(self) -> None:
-        self.inspections_queue: Deque[Tuple[TASKS, str]] = deque(maxlen=1000)
-        self.missions_inspection_queue: Deque[Tuple[str, Mission]] = deque(maxlen=100)
+        self.inspections_queue: deque[tuple[TASKS, str]] = deque(maxlen=1000)
+        self.missions_inspection_queue: deque[tuple[str, Mission]] = deque(maxlen=100)
         self.transform: Transform = import_transform_from_map_file()
         self.request_handler: RequestHandler = RequestHandler()
 
@@ -129,7 +126,7 @@ def _process_inspection_event(
         )
         return
 
-    mission: Optional[Mission] = None
+    mission: Mission | None = None
     for mission_run_id, _mission in missions_inspection_queue:
         if mission_run_id == event.metadata.mission_run_id:
             mission = _mission
@@ -148,8 +145,8 @@ def _process_inspection_event(
     inspection: Inspection
     robot_pose: Pose = _extract_robot_pose(event=event, transform=transform)
     target_position: Position = _extract_target_position(task, robot_pose)
-    metadata_type: Type[InspectionMetadata]
-    inspection_type: Type[Inspection]
+    metadata_type: type[InspectionMetadata]
+    inspection_type: type[Inspection]
 
     try:
         if _is_acoustic_inspection(event):
@@ -216,11 +213,11 @@ def _process_inspection_event(
 
 def _process_inspection_value(
     event: InspectionEventDto,
-) -> Tuple[float, str, Type[InspectionMetadata], Type[InspectionValue]]:
+) -> tuple[float, str, type[InspectionMetadata], type[InspectionValue]]:
     value: float
     unit: str
-    metadata_type: Type[InspectionMetadata]
-    inspection_type: Type[InspectionValue]
+    metadata_type: type[InspectionMetadata]
+    inspection_type: type[InspectionValue]
 
     if event.measurement.type == InspectionMeasurementType.IMT_CONCENTRATION:
         concentration_measurement: ConcentrationMeasurementDto = (
@@ -244,12 +241,12 @@ def _process_inspection_value(
 
 def _process_inspection_blob(
     event: InspectionEventDto, request_handler: RequestHandler
-) -> Tuple[bytes, Type[InspectionMetadata], str, Type[Inspection], Optional[int]]:
+) -> tuple[bytes, type[InspectionMetadata], str, type[Inspection], int | None]:
     file_bytes: bytes
-    metadata_type: Type[InspectionMetadata]
+    metadata_type: type[InspectionMetadata]
     file_type: str
-    inspection_type: Type[Inspection]
-    video_duration: Optional[int] = None
+    inspection_type: type[Inspection]
+    video_duration: int | None = None
 
     # if event.measurement.type == InspectionMeasurementType.IMT_THERMAL:
     #     metadata_type = ThermalImageMetadata
@@ -296,7 +293,7 @@ def _process_inspection_blob(
 
 def _fetch_blob_via_data_navigator(
     task_run_uid: str, request_handler: RequestHandler
-) -> Tuple[bytes, str]:
+) -> tuple[bytes, str]:
     inspection_response: Response = request_handler.get(
         url=f"{settings.SERVER_URL}/data-navigator-api/inspections?taskRunId={task_run_uid}"
     )
@@ -321,7 +318,7 @@ def _fetch_blob_via_data_navigator(
         ) from exc
     max_retries: int = 30
     attempt_number: int = 0
-    file_response: Optional[Response] = None
+    file_response: Response | None = None
     while attempt_number < max_retries:
         try:
             file_response = request_handler.get(
@@ -356,7 +353,7 @@ def _process_acoustic_inspection(
         event.measurement.data
     )
 
-    leak_data: Optional[LeakDetectionInterpretationDto] = None
+    leak_data: LeakDetectionInterpretationDto | None = None
     for interpretation in event.interpretations:
         if (
             interpretation.type == InspectionInterpretationType.IIT_LEAK_DETECTION
@@ -377,7 +374,7 @@ def _process_acoustic_inspection(
     )
 
     metadata = AcousticMeasurementMetadata(
-        start_time=datetime.now(),
+        start_time=datetime.now(UTC),
         robot_pose=robot_pose,
         target_position=target_position,
         file_type=file_type,
@@ -456,17 +453,17 @@ def _is_value_inspection(event) -> bool:
 
 
 def _create_blob_inspection(
-    metadata_type: Type[InspectionMetadata],
-    inspection_type: Type[Inspection],
+    metadata_type: type[InspectionMetadata],
+    inspection_type: type[Inspection],
     robot_pose: Pose,
     target_position: Position,
     file_type: str,
     task: TASKS,
     file_bytes: bytes,
-    video_duration: Optional[int] = None,
+    video_duration: int | None = None,
 ) -> Inspection:
     inspection_metadata: InspectionMetadata = metadata_type(
-        start_time=datetime.now(),
+        start_time=datetime.now(UTC),
         robot_pose=robot_pose,
         target_position=target_position,
         file_type=file_type,
@@ -490,13 +487,13 @@ def _create_value_inspection(
     task: TASKS,
     value: float,
     unit: str,
-    metadata_type: Type[InspectionMetadata],
-    inspection_type: Type[InspectionValue],
+    metadata_type: type[InspectionMetadata],
+    inspection_type: type[InspectionValue],
     robot_pose: Pose,
     target_position: Position,
 ):
     inspection_metadata: InspectionMetadata = metadata_type(
-        start_time=datetime.now(),
+        start_time=datetime.now(UTC),
         robot_pose=robot_pose,
         target_position=target_position,
         file_type="",

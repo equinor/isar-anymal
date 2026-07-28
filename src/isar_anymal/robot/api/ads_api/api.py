@@ -1,14 +1,12 @@
 import logging
 from pathlib import Path
-from typing import Optional
 
 import requests
-
 from pydantic import BaseModel
-from requests import Response, RequestException
+from requests import RequestException, Response
 from robot_interface.models.exceptions.robot_exceptions import (
-    RobotCommunicationException,
     RobotAPIException,
+    RobotCommunicationException,
 )
 
 logger = logging.getLogger(__name__)
@@ -17,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SendFileResponse(BaseModel):
     success: bool
     destination_path: str
-    error_description: Optional[str] = None
+    error_description: str | None = None
 
 
 SEND_FILE_URL: str = "http://0.0.0.0:8081/send-file-to-robot-computer"
@@ -85,7 +83,7 @@ def get_file_through_ads_api(
 
 
 def _send_post_request(
-    url: str, data: dict, files: Optional[dict] = None, timeout: float = 60
+    url: str, data: dict, files: dict | None = None, timeout: float = 60
 ) -> Response:
     try:
         response: Response = requests.post(url, data=data, files=files, timeout=timeout)

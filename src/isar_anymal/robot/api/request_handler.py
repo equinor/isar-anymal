@@ -1,11 +1,11 @@
 import logging
 import time
-from typing import Any, Optional
+import warnings
+from typing import Any
 
 import requests
 from requests.exceptions import HTTPError, RequestException
 from requests.models import Response
-import warnings
 
 from isar_anymal.config import settings
 
@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 class RequestHandler:
     def __init__(self) -> None:
-        self.token: Optional[str] = None
-        self.token_expires_at: Optional[float] = None
+        self.token: str | None = None
+        self.token_expires_at: float | None = None
 
-    def request_token(self) -> Optional[str]:
+    def request_token(self) -> str | None:
         login_payload = {
             "email": settings.API_EMAIL,
             "password": settings.API_PASSWORD,
@@ -36,7 +36,7 @@ class RequestHandler:
             self.token_expires_at = time.time() + 900  # 15 minutes
         return self.token
 
-    def get_token(self) -> Optional[str]:
+    def get_token(self) -> str | None:
         if (
             self.token is None
             or self.token_expires_at is None
@@ -51,11 +51,11 @@ class RequestHandler:
         self,
         url: str,
         method: str,
-        headers: Optional[dict],
+        headers: dict | None,
         json_body: Any,
-        timeout: Optional[float],
+        timeout: float | None,
         data: Any = None,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         **kwargs,
     ) -> Response:
         try:
@@ -74,8 +74,8 @@ class RequestHandler:
                     verify=False,
                     **kwargs,
                 )
-        except RequestException as e:
-            raise e
+        except RequestException:
+            raise
         except Exception as e:
             logger.exception("An unhandled exception occurred during a request")
             raise RequestException from e
@@ -99,11 +99,11 @@ class RequestHandler:
         self,
         url: str,
         json_body=None,
-        request_timeout: Optional[float] = settings.API_REQUEST_TIMEOUT,
-        headers: Optional[dict] = None,
-        data: Optional[dict] = None,
+        request_timeout: float | None = settings.API_REQUEST_TIMEOUT,
+        headers: dict | None = None,
+        data: dict | None = None,
         stream: bool = False,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         **kwargs,
     ) -> Response:
         return self._base_request(
@@ -122,10 +122,10 @@ class RequestHandler:
         self,
         url: str,
         json_body=None,
-        request_timeout: Optional[float] = settings.API_REQUEST_TIMEOUT,
-        headers: Optional[dict] = None,
+        request_timeout: float | None = settings.API_REQUEST_TIMEOUT,
+        headers: dict | None = None,
         data: Any = None,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         **kwargs,
     ) -> Response:
         return self._base_request(

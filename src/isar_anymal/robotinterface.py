@@ -1,8 +1,7 @@
 import logging
-
+from collections.abc import Callable
 from queue import Queue
 from threading import Thread
-from typing import Callable, List, Optional
 
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotInfeasibleMissionException,
@@ -39,8 +38,8 @@ class Robot(RobotInterface):
             anymal_api=self.anymal, robot_name=robot_name, isar_id=isar_id
         )
 
-        self.current_anymal_mission_id: Optional[str] = None
-        self.current_isar_mission_id: Optional[str] = None
+        self.current_anymal_mission_id: str | None = None
+        self.current_isar_mission_id: str | None = None
         self.return_to_home_mission_running: bool = False
 
         logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -80,8 +79,8 @@ class Robot(RobotInterface):
             return
 
         self.return_to_home_mission_running = False
-        mission_id: Optional[str]
-        anymal_mission_tasks: Optional[list]
+        mission_id: str | None
+        anymal_mission_tasks: list | None
         mission_id, anymal_mission_tasks = self.anymal.prepare_mission_plan(
             mission=mission
         )
@@ -224,8 +223,8 @@ class Robot(RobotInterface):
 
     def get_telemetry_publishers(
         self, queue: Queue, isar_id: str, robot_name: str
-    ) -> List[Thread]:
-        publisher_threads: List[Thread] = []
+    ) -> list[Thread]:
+        publisher_threads: list[Thread] = []
 
         battery_publisher: MqttTelemetryPublisher = MqttTelemetryPublisher(
             mqtt_queue=queue,
@@ -263,7 +262,7 @@ class Robot(RobotInterface):
         return self.anymal.get_robot_status()
 
     def get_battery_level(self) -> float:
-        battery_level: Optional[float] = self.anymal.battery_handler.battery.level
+        battery_level: float | None = self.anymal.battery_handler.battery.level
         if battery_level is None:
             raise RobotUnknownErrorException("Unable to get battery level from robot")
         return battery_level

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from pydantic import BaseModel
 from robot_interface.models.exceptions.robot_exceptions import RobotTelemetryException
@@ -14,15 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class Battery(BaseModel):
-    level: Optional[float]
-    state: Optional[BatteryState]
-    timestamp: Optional[str]
+    level: float | None
+    state: BatteryState | None
+    timestamp: str | None
 
 
 class BatteryHandler:
     def __init__(self) -> None:
         self.battery: Battery = Battery(level=None, state=None, timestamp=None)
-        self.anymal_reported_battery_status: Optional[BatteryStatus] = None
+        self.anymal_reported_battery_status: BatteryStatus | None = None
 
         self.battery_sse_handler: SSEHandler = SSEHandler()
 

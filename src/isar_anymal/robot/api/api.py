@@ -1,20 +1,13 @@
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
 
-from alitra import (
-    Frame,
-    MapAlignment,
-    Pose,
-    Position,
-    Transform,
-    align_maps,
-)
+from alitra import Frame, MapAlignment, Pose, Position, Transform, align_maps
 from requests import Response
 from robot_interface.models.exceptions.robot_exceptions import (
+    RobotException,
     RobotInfeasibleMissionException,
     RobotTelemetryNoUpdateException,
     RobotTelemetryPoseException,
@@ -31,10 +24,9 @@ from robot_interface.telemetry.payloads import (
 )
 
 from isar_anymal.config import settings
-from isar_anymal.robot.api.anymal_api.enums import (
-    UserInteractionMode,
-    BatteryStatus,
-)
+from isar_anymal.robot.api.anymal_api.api import ANYmalAPI
+from isar_anymal.robot.api.anymal_api.enums import BatteryStatus, UserInteractionMode
+from isar_anymal.robot.api.anymal_api.models import ControlMissionResponseDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.battery_handler import (
     BatteryHandler,
 )
@@ -47,17 +39,13 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.main_body_state
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.pose_handler import (
     PoseHandler,
 )
-
 from isar_anymal.robot.api.media_stream import MediaStream
 from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.request_handler import RequestHandler
+from isar_anymal.robot.api.utilities.acoustic_roi import resolve_acoustic_roi
 from isar_anymal.robot.api.utilities.anybotics_file_handler.anymal_ads_file_transfer import (
     ANYmalADSFileTransfer,
 )
-from isar_anymal.robot.api.utilities.acoustic_roi import resolve_acoustic_roi
-
-from isar_anymal.robot.api.anymal_api.api import ANYmalAPI
-from isar_anymal.robot.api.anymal_api.models import ControlMissionResponseDto
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +70,7 @@ class API:
             map_alignment.map_from, map_alignment.map_to, rot_axes="z"
         )
 
-        self.media_stream: Optional[MediaStream] = None
+        self.media_stream: MediaStream | None = None
         self.file_transfer_handler: ANYmalADSFileTransfer = ANYmalADSFileTransfer(
             mission_creation=True
         )
@@ -105,18 +93,16 @@ class API:
         finally:
             self.release_control(lease_id=lease_id)
 
-    def prepare_mission_plan(
-        self, mission: Mission
-    ) -> Tuple[Optional[str], Optional[list]]:
+    def prepare_mission_plan(self, mission: Mission) -> tuple[str | None, list | None]:
         """Prepare a mission plan and adjust the environment file on the robot
         to be capable of running the given mission."""
-        inspections: List[Dict] = self.convert_tasks_to_anymal_inspections(
+        inspections: list[dict] = self.convert_tasks_to_anymal_inspections(
             tasks=mission.tasks
         )
 
         try:
-            mission_id: Optional[str]
-            mission_tasks: Optional[list]
+            mission_id: str | None
+            mission_tasks: list | None
             mission_id, mission_tasks = (
                 self.file_transfer_handler.create_ad_hoc_inspections(
                     inspections=inspections
@@ -124,15 +110,13 @@ class API:
             )
             time.sleep(settings.ENVIRONMENT_FILE_SYNC_DELAY)
             return mission_id, mission_tasks
-        except Exception as e:
-            logger.exception(e)
+        except Exception:
             error_description: str = "Failed to prepare mission plan"
             logger.exception(error_description)
             raise RobotUnknownErrorException(error_description)
 
-    def convert_tasks_to_anymal_inspections(self, tasks: List[TASKS]) -> List[Dict]:
-        inspections: List[Dict] = []
-        task_counter: int = 0
+    def convert_tasks_to_anymal_inspections(self, tasks: list[TASKS]) -> list[dict]:
+        inspections: list[dict] = []
         for task in tasks:
             task_type: str = self.extract_task_type(task)
 
@@ -157,7 +141,6 @@ class API:
                     task_type=task_type,
                 )
             )
-            task_counter += 1
 
         return inspections
 
@@ -167,7 +150,7 @@ class API:
         target_position: Position,
         task: TASKS,
         task_type: str,
-    ) -> Dict:
+    ) -> dict:
         return {
             "poi": {
                 "pos": {
@@ -271,7 +254,7 @@ class API:
         logger.info(f"Mission {settings.DOCK_MISSION_NAME} started successfully")
         return response.run_uid
 
-    def pause_mission(self, mission_run_uid: Optional[str]) -> None:
+    def pause_mission(self, mission_run_uid: str | None) -> None:
         lease_id: str = self.take_control()
         try:
             _ = self.anymal_api.pause_mission(
@@ -327,11 +310,10 @@ class API:
         try:
             if self.robot_is_home():
                 return RobotStatus.Home
-        except Exception:
+        except RobotException:
             logger.warning(
                 "Could not determine if robot is home, will default to available"
             )
-            pass
 
         return RobotStatus.Available
 
@@ -340,7 +322,7 @@ class API:
             url=f"{settings.SERVER_URL}/anymal-api/connection/"
         )
         for connection_info in connection_response.json():
-            if not connection_info["anymalName"] == settings.ROBOT_NAME:
+            if connection_info["anymalName"] != settings.ROBOT_NAME:
                 continue
 
             return connection_info["connectionStatus"] == "CS_CONNECTED"
@@ -358,10 +340,7 @@ class API:
         if self.battery_handler.battery.state is BatteryState.Charging:
             return True
 
-        if self.battery_handler.battery.level >= settings.BATTERY_FULL_VALUE:
-            return True
-
-        return False
+        return self.battery_handler.battery.level >= settings.BATTERY_FULL_VALUE
 
     def get_pose_telemetry_payload(self, isar_id: str, robot_name: str) -> str:
         retry_count: int = 0
@@ -378,7 +357,7 @@ class API:
         pose_payload: TelemetryPosePayload = TelemetryPosePayload(
             isar_id=isar_id,
             robot_name=robot_name,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             pose=pose,
         )
 
@@ -388,7 +367,7 @@ class API:
         battery_payload: TelemetryBatteryPayload = TelemetryBatteryPayload(
             isar_id=isar_id,
             robot_name=robot_name,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             battery_level=self.get_battery_level(),
             battery_state=self.get_battery_state(),
         )

@@ -41,7 +41,7 @@ def test_pause_and_resume_mission(mocker: MockerFixture) -> None:
             return _mock_response_object(expected_lease_payload)
         elif url.endswith(release_url):
             return _mock_response_object(expected_release_payload)
-        elif url.endswith(pause_mission_url) or url.endswith(resume_mission_url):
+        elif url.endswith((pause_mission_url, resume_mission_url)):
             return _mock_response_object(expected_pause_or_resume_mission_payload)
         raise AssertionError(f"Unexpected url: {url}")
 

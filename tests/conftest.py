@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import pytest
-from azure.storage.blob import ContainerClient, BlobClient
+from azure.storage.blob import BlobClient, ContainerClient
 
 TEST_DATA_DIR = Path(__file__).parent / "robot" / "test_data"
 
