@@ -58,3 +58,9 @@ To update all dependencies to the latest versions:
 ```
 uv lock --upgrade
 ```
+
+To update all dependencies without pointing to local packages, use:
+
+```
+uv lock --upgrade --no-sources
+```
