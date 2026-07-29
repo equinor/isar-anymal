@@ -26,10 +26,7 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_hand
 from isar_anymal.robot.api.api import API
 from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.utilities.acoustic_roi import DEFAULT_ACOUSTIC_ROI
-from tests.robot.utilities import (
-    build_acoustic_task,
-    mock_subscribe_callback_functions,
-)
+from tests.robot.utilities import build_acoustic_task, mock_subscribe_callback_functions
 
 
 def test_create_inspection() -> None:
@@ -46,7 +43,9 @@ def test_create_inspection() -> None:
         target_position=robot_pose.position,
         file_type="jpg",
         task=TakeImage(
-            target=Position(x=1, y=1, z=1, frame=Frame("asset")), robot_pose=robot_pose
+            id="id",
+            target=Position(x=1, y=1, z=1, frame=Frame("asset")),
+            robot_pose=robot_pose,
         ),
         file_bytes=b"Some file bytes",
         video_duration=None,
@@ -129,6 +128,7 @@ def test_create_inspection_forwards_analysis_types() -> None:
         target_position=robot_pose.position,
         file_type="jpg",
         task=TakeImage(
+            id="id",
             target=Position(x=1, y=1, z=1, frame=Frame("asset")),
             robot_pose=robot_pose,
             analysis_types=["fencilla"],

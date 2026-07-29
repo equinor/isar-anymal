@@ -53,6 +53,7 @@ def default_robot_pose() -> Pose:
 
 def build_acoustic_task(roi: Roi | None = None) -> TakeAcousticMeasurement:
     return TakeAcousticMeasurement(
+        id="id",
         target=Position(x=1, y=1, z=1, frame=Frame("asset")),
         robot_pose=default_robot_pose(),
         frequency_from=1000.0,

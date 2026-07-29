@@ -301,7 +301,7 @@ class API:
 
         if not settings.AUTO_DISABLE_PROTECTIVE_STOP:
             if self.control_status_handler.control_status.protective_stop_engaged:
-                return RobotStatus.BlockedProtectiveStop
+                return RobotStatus.TeleOperation
             else:
                 logger.warning(
                     "Received a robot status call before receiving a protective stop event, will not evaluate protective stop status"

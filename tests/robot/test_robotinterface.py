@@ -33,14 +33,17 @@ def test_that_initiate_mission_is_successful_for_a_normal_mission(
     )
 
     mission: Mission = Mission(
+        id="id1",
         name="test_mission",
         tasks=[
             TakeImage(
+                id="id2",
                 robot_pose=default_robot_pose(),
                 target=Position(0, 0, 0, frame=Frame("asset")),
             ),
-            TakeCO2Measurement(robot_pose=default_robot_pose()),
+            TakeCO2Measurement(id="id3", robot_pose=default_robot_pose()),
             TakeAcousticMeasurement(
+                id="id4",
                 robot_pose=default_robot_pose(),
                 target=Position(0, 0, 0, frame=Frame("asset")),
                 frequency_from=1000.0,
@@ -73,6 +76,7 @@ def test_that_return_home_mission_is_started_correctly(
     )
 
     mission: Mission = Mission(
+        id="id",
         name="return_home_mission",
         tasks=[ReturnToHome()],
     )

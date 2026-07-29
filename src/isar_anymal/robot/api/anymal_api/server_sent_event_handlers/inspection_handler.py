@@ -393,9 +393,7 @@ def _process_acoustic_inspection(
     metadata.inspection_description = task.inspection_description
     metadata.analysis_types = task.analysis_types
 
-    return AcousticMeasurement(
-        metadata=metadata, id=task.inspection_id, data=file_bytes
-    )
+    return AcousticMeasurement(metadata=metadata, id=task.id, data=file_bytes)
 
 
 def _extract_target_position(task: TASKS, robot_pose: Pose) -> Position:
@@ -478,9 +476,7 @@ def _create_blob_inspection(
     ):
         inspection_metadata.duration = video_duration
 
-    return inspection_type(
-        metadata=inspection_metadata, id=task.inspection_id, data=file_bytes
-    )
+    return inspection_type(metadata=inspection_metadata, id=task.id, data=file_bytes)
 
 
 def _create_value_inspection(
@@ -504,5 +500,5 @@ def _create_value_inspection(
     inspection_metadata.analysis_types = task.analysis_types
 
     return inspection_type(
-        id=task.inspection_id, unit=unit, value=value, metadata=inspection_metadata
+        id=task.id, unit=unit, value=value, metadata=inspection_metadata
     )
