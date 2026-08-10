@@ -45,9 +45,38 @@ jobs:
           done
           echo "tag=$largest_version_tag" >> "$GITHUB_OUTPUT"
 
+  copy-images-to-robotics-prod-registry:
+    name: Copy staging images to robotics prod registry
+    needs: get_staging_version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image_name: [robotics/isar-anymal, robotics/ads-api]
+    steps:
+      - name: Log in to robotics staging registry
+        uses: docker/login-action@v3
+        with:
+          registry: roboticsstagingacr.azurecr.io
+          username: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_USERNAME }}
+          password: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_PASSWORD }}
+
+      - name: Log in to robotics prod registry
+        uses: docker/login-action@v3
+        with:
+          registry: roboticsprodacr.azurecr.io
+          username: ${{ secrets.ROBOTICS_ROBOTICSPRODACR_USERNAME }}
+          password: ${{ secrets.ROBOTICS_ROBOTICSPRODACR_PASSWORD }}
+
+      - name: Copy image from staging to prod registry
+        run: |
+          docker buildx imagetools create \
+            --tag roboticsprodacr.azurecr.io/${{ matrix.image_name }}:${{ needs.get_staging_version.outputs.versionTag }} \
+            --tag roboticsprodacr.azurecr.io/${{ matrix.image_name }}:latest \
+            roboticsstagingacr.azurecr.io/${{ matrix.image_name }}:${{ needs.get_staging_version.outputs.versionTag }}
+
   deploy:
     name: Update deployment in Production
-    needs: get_staging_version
+    needs: [get_staging_version, copy-images-to-robotics-prod-registry]
     uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
     strategy:
       max-parallel: 1
