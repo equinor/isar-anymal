@@ -36,7 +36,7 @@ jobs:
           for line_number in "${LINE_NUMBERS[@]}"
           do
               TAG_LINE_NUMBER=$((line_number+1))
-              version_tag=$(sed -n "${TAG_LINE_NUMBER}p" k8s_kustomize/overlays/staging/kustomization.yaml  |  cut --delimiter=":" --fields=2)
+              version_tag=$(sed -n "${TAG_LINE_NUMBER}p" k8s_kustomize/overlays/staging/kustomization.yaml  |  cut --delimiter=":" --fields=2 | tr -d '[:space:]')
               version_int=$(echo "$version_tag" | tr -d '.' | tr -d '\n' | tr -d '\r' | tr -d 'v')
               if [[ "$version_int" -gt "$largest_version_int" ]]; then
                   largest_version_tag=$version_tag
