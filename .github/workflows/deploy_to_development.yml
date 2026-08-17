@@ -24,51 +24,51 @@ jobs:
           SHA_SHORT=$(echo ${{ github.sha }} | cut -c1-8)
           echo "tag=$SHA_SHORT" >> "$GITHUB_OUTPUT"
 
-  build-and-push-dev-image-to-robotics-staging-registry:
-    name: Build and push dev image to robotics staging container registry
+  build-and-push-dev-image-to-robotics-dev-registry:
+    name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
     uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
     permissions:
       contents: read
       packages: write
     with:
-      registry: roboticsstagingacr.azurecr.io
+      registry: roboticsdevacr.azurecr.io
       image_name: robotics/isar-anymal
       tag: ${{ needs.get-short-sha.outputs.tag }}
       secondary_tag: dev
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
     secrets:
-      registry_password: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_PASSWORD }}
-      registry_username: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_USERNAME }}
+      registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
 
-  build-and-push-ads-image-to-robotics-staging-registry:
-    name: Build and push ads image to robotics staging container registry
+  build-and-push-ads-image-to-robotics-dev-registry:
+    name: Build and push ads image to robotics dev container registry
     needs: get-short-sha
     uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
     permissions:
       contents: read
       packages: write
     with:
-      registry: roboticsstagingacr.azurecr.io
+      registry: roboticsdevacr.azurecr.io
       image_name: robotics/ads-api
       tag: ${{ needs.get-short-sha.outputs.tag }}
       secondary_tag: dev
       path_to_dockerfile: ads_api/Dockerfile
       path_to_context: ads_api
     secrets:
-      registry_password: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_PASSWORD }}
-      registry_username: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_USERNAME }}
+      registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
+      registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
       anymal_download_password: ${{ secrets.ANYMAL_DOWNLOAD_PASSWORD }}
       anymal_download_username: ${{ secrets.ANYMAL_DOWNLOAD_USER_NAME }}
 
   deploy:
     name: Update deployment in Development
-    needs: [get-short-sha, build-and-push-dev-image-to-robotics-staging-registry, build-and-push-ads-image-to-robotics-staging-registry]
+    needs: [get-short-sha, build-and-push-dev-image-to-robotics-dev-registry, build-and-push-ads-image-to-robotics-dev-registry]
     uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
     with:
       environment: development
-      registry: roboticsstagingacr.azurecr.io
+      registry: roboticsdevacr.azurecr.io
       image_name: robotics/isar-anymal
       tag: ${{ needs.get-short-sha.outputs.tag }}
       author_email: ${{ github.event.head_commit.author.email }}
