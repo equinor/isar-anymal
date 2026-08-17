@@ -30,7 +30,7 @@ jobs:
       - name: Get Isar-Anymal version in staging
         id: get_version_tag
         run: |
-          LINE_NUMBERS=($(grep -n "auroraprodacr.azurecr.io/robotics/isar-anymal" "k8s_kustomize/overlays/staging/kustomization.yaml" | cut -d ':' -f 1))
+          LINE_NUMBERS=($(grep -n "roboticsstagingacr.azurecr.io/robotics/isar-anymal" "k8s_kustomize/overlays/staging/kustomization.yaml" | cut -d ':' -f 1))
           largest_version_int=0
           largest_version_tag=
           for line_number in "${LINE_NUMBERS[@]}"
@@ -87,7 +87,7 @@ jobs:
     with:
       environment: production
       tag: ${{ needs.get_staging_version.outputs.versionTag }}
-      registry: auroraprodacr.azurecr.io
+      registry: roboticsprodacr.azurecr.io
       image_name: ${{ matrix.image_name }}
       author_name: ${{ github.actor }}
       infrastructure_repository: equinor/robotics-infrastructure
