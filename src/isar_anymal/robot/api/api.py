@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 
 from alitra import Frame, MapAlignment, Pose, Position, Transform, align_maps
@@ -342,7 +341,7 @@ class API:
 
         return self.battery_handler.battery.level >= settings.BATTERY_FULL_VALUE
 
-    def get_pose_telemetry_payload(self, isar_id: str, robot_name: str) -> str:
+    def get_pose_telemetry_payload(self) -> str:
         retry_count: int = 0
         while retry_count < settings.MAX_TELEMETRY_RETRIES:
             try:
@@ -355,19 +354,13 @@ class API:
             raise RobotTelemetryPoseException("Could not get pose")
 
         pose_payload: TelemetryPosePayload = TelemetryPosePayload(
-            isar_id=isar_id,
-            robot_name=robot_name,
-            timestamp=datetime.now(UTC),
             pose=pose,
         )
 
         return pose_payload.model_dump_json()
 
-    def get_battery_telemetry_payload(self, isar_id: str, robot_name: str) -> str:
+    def get_battery_telemetry_payload(self) -> str:
         battery_payload: TelemetryBatteryPayload = TelemetryBatteryPayload(
-            isar_id=isar_id,
-            robot_name=robot_name,
-            timestamp=datetime.now(UTC),
             battery_level=self.get_battery_level(),
             battery_state=self.get_battery_state(),
         )
