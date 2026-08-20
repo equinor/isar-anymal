@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: docker
+    directory: /ads_api
+    schedule:
+      interval: weekly
