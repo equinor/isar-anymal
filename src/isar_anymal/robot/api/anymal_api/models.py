@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
 
 from isar_anymal.robot.api.anymal_api.enums import (
     ANYmalMissionStatus,
@@ -272,7 +274,32 @@ class InspectionMeasurementDto(BaseModel):
         | VideoMeasurementDto
         | ConcentrationMeasurementDto
         | AcousticImageMeasurementDto
+        | dict[str, Any]
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_measurement_data(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        data_types: dict[InspectionMeasurementType, type[BaseModel]] = {
+            InspectionMeasurementType.IMT_THERMAL: ThermalMeasurementDto,
+            InspectionMeasurementType.IMT_VISUAL: VisualMeasurementDto,
+            InspectionMeasurementType.IMT_AUDITIVE: AuditiveMeasurementDto,
+            InspectionMeasurementType.IMT_VIDEO: VideoMeasurementDto,
+            InspectionMeasurementType.IMT_CONCENTRATION: ConcentrationMeasurementDto,
+            InspectionMeasurementType.IMT_CONCENTRATION_MONITORING: ConcentrationMeasurementDto,
+            InspectionMeasurementType.IMT_ACOUSTIC_IMAGE: AcousticImageMeasurementDto,
+        }
+        measurement_type = InspectionMeasurementType(values.get("type"))
+        data_type = data_types.get(measurement_type)
+        if data_type is None:
+            return values
+
+        parsed_values = values.copy()
+        parsed_values["data"] = data_type.model_validate(values.get("data"))
+        return parsed_values
 
 
 class ThermalHotspotInterpretationDto(BaseModel):
