@@ -225,7 +225,13 @@ class ConcentrationSensorPropertiesDto(BaseModel):
     measurement_range: FloatRangeDto | None = Field(
         alias="measurementRange", default=None
     )
-    low_thresholds: ConcentrationThresholdsDto = Field(alias="lowThresholds")
+    # The low_thresholds field has been set to optional here even though the API
+    # specification say required. We experienced that the value was not provided in the
+    # events even though it says required. Thus this point currently differs from the
+    # API specification.
+    low_thresholds: ConcentrationThresholdsDto | None = Field(
+        alias="lowThresholds", default=None
+    )
     high_thresholds: ConcentrationThresholdsDto = Field(alias="highThresholds")
 
 
