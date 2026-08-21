@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from alitra import Frame, Orientation, Pose, Position, Transform
+from pydantic import ValidationError
 from requests import RequestException
 from requests.models import Response
 from robot_interface.models.exceptions.robot_exceptions import (
@@ -223,9 +224,20 @@ def _process_inspection_value(
     inspection_type: type[InspectionValue]
 
     if event.measurement.type == InspectionMeasurementType.IMT_CONCENTRATION:
-        concentration_measurement: ConcentrationMeasurementDto = (
-            ConcentrationMeasurementDto.model_validate(event.measurement.data)
-        )
+        try:
+            concentration_measurement = ConcentrationMeasurementDto.model_validate(
+                event.measurement.data
+            )
+        except ValidationError as e:
+            raise RobotRetrieveInspectionException(
+                "Failed to parse concentration measurement data of type "
+                f"{type(event.measurement.data).__name__}"
+            ) from e
+
+        if concentration_measurement.value is None:
+            raise RobotRetrieveInspectionException(
+                "Concentration measurement did not contain a value"
+            )
 
         value = (
             concentration_measurement.value / 10000
