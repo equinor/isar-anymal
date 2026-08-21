@@ -91,6 +91,7 @@ jobs:
       image_name: ${{ matrix.image_name }}
       author_name: ${{ github.actor }}
       infrastructure_repository: equinor/robotics-infrastructure
+      kustomization_base_path: k8s_kustomize/robotics/overlays
     secrets:
       deploy_key: ${{ secrets.ROBOTICS_INFRASTRUCTURE_DEPLOY_KEY }}
 
