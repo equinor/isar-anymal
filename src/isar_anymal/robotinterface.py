@@ -44,6 +44,8 @@ class Robot(RobotInterface):
 
         logging.getLogger("httpcore").setLevel(logging.WARNING)
 
+        _reenable_package_loggers()
+
     def initiate_mission(self, mission: Mission) -> None:
         """Start a new ISAR mission on the ANYmal robot.
 
@@ -266,3 +268,21 @@ class Robot(RobotInterface):
         if battery_level is None:
             raise RobotUnknownErrorException("Unable to get battery level from robot")
         return battery_level
+
+
+def _reenable_package_loggers() -> None:
+    """Re-enable this package's loggers, disabled by ISAR's logging setup.
+
+    ISAR imports the robot package before calling ``setup_loggers()``, whose
+    ``dictConfig`` defaults ``disable_existing_loggers`` to ``True`` and so
+    disables every ``isar_anymal.*`` logger. Called from ``Robot.__init__``,
+    which runs afterwards.
+    """
+    package_root = __name__.split(".")[0]
+    prefix = f"{package_root}."
+
+    for name, existing in logging.root.manager.loggerDict.items():
+        if not isinstance(existing, logging.Logger):
+            continue  # PlaceHolder entries have no `disabled` attribute
+        if name == package_root or name.startswith(prefix):
+            existing.disabled = False
