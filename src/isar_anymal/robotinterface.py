@@ -15,7 +15,7 @@ from robot_interface.models.mission.status import MissionStatus, RobotStatus, Ta
 from robot_interface.models.mission.task import InspectionTask
 from robot_interface.models.robots.media import MediaConfig
 from robot_interface.robot_interface import RobotInterface
-from robot_interface.telemetry.mqtt_client import MqttTelemetryPublisher
+from robot_interface.telemetry.mqtt_client import TelemetryParameters
 
 from isar_anymal.config import settings
 from isar_anymal.open_telemetry.metrics_handler import MetricsHandler
@@ -223,42 +223,26 @@ class Robot(RobotInterface):
     def generate_media_config(self) -> MediaConfig:
         return self.anymal.generate_media_config()
 
-    def get_telemetry_publishers(
-        self, queue: Queue, isar_id: str, robot_name: str
-    ) -> list[Thread]:
+    def get_telemetry_publishers(self) -> list[TelemetryParameters]:
         publisher_threads: list[Thread] = []
 
-        battery_publisher: MqttTelemetryPublisher = MqttTelemetryPublisher(
-            mqtt_queue=queue,
-            telemetry_method=self.anymal.get_battery_telemetry_payload,
-            topic=f"isar/{isar_id}/battery",
-            interval=5,
-            retain=False,
-        )
-        battery_thread: Thread = Thread(
-            target=battery_publisher.run,
-            args=[isar_id, robot_name],
-            name="ISAR Robot Battery Publisher",
-            daemon=True,
-        )
-        publisher_threads.append(battery_thread)
+        return [
+            TelemetryParameters(
+                name="ISAR Anymal Battery Publisher",
+                method=lambda: self.anymal.get_battery_telemetry_payload,
+                topic=f"battery",
+                interval=5,
+            ),
+            TelemetryParameters(
+                name="ISAR Anymal Pose Publisher",
+                method=lambda: self.anymal.get_pose_telemetry_payload,
+                topic=f"pose",
+                interval=5,
+            ),
+        ]
 
-        pose_publisher: MqttTelemetryPublisher = MqttTelemetryPublisher(
-            mqtt_queue=queue,
-            telemetry_method=self.anymal.get_pose_telemetry_payload,
-            topic=f"isar/{isar_id}/pose",
-            interval=5,
-            retain=False,
-        )
-        pose_thread: Thread = Thread(
-            target=pose_publisher.run,
-            args=[isar_id, robot_name],
-            name="ISAR Robot Pose Publisher",
-            daemon=True,
-        )
-        publisher_threads.append(pose_thread)
-
-        return publisher_threads
+    def get_utility_threads(self) -> list[Thread]:
+        return []
 
     def robot_status(self) -> RobotStatus:
         return self.anymal.get_robot_status()
