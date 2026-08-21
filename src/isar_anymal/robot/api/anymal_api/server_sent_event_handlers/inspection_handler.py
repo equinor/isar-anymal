@@ -99,8 +99,22 @@ def _process_inspection_event(
     interpreted data is available in the event, but not used.
     """
 
+    logger.info(
+        f"Received inspection event: measurement type={event.measurement.type}, "
+        f"asset ID={event.asset_id}, task run UID={event.task_run_uid}, "
+        f"mission run ID={event.metadata.mission_run_id}"
+    )
+
     if event.measurement.type == InspectionMeasurementType.IMT_CONCENTRATION_MONITORING:
+        # Discarded, as before. Logged so we can see which measurement type
+        # CO2 tasks actually emit; IMT_CONCENTRATION is handled below.
+        logger.warning(
+            f"Discarding IMT_CONCENTRATION_MONITORING inspection event for asset "
+            f"ID {event.asset_id} (task run UID {event.task_run_uid}). No inspection "
+            f"will be created or uploaded for this event."
+        )
         return
+
     logger.info(event)
 
     if event.measurement.sensor_pose.frame_id == "invalid":
