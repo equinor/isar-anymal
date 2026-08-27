@@ -3,6 +3,7 @@ from collections.abc import Callable
 from threading import Thread
 
 from robot_interface.models.exceptions.robot_exceptions import (
+    RobotException,
     RobotInfeasibleMissionException,
     RobotMissionStatusException,
     RobotTaskStatusException,
@@ -117,6 +118,17 @@ class Robot(RobotInterface):
             )
 
     def task_status(self, task_id: str) -> TaskStatus:
+        try:
+            return self._task_status(task_id=task_id)
+        except RobotException:
+            raise
+        except Exception as e:
+            self._log_unexpected_status_error("task")
+            raise RobotTaskStatusException(
+                "Unexpected error while reading task status"
+            ) from e
+
+    def _task_status(self, task_id: str) -> TaskStatus:
         if self.anymal.mission_status_handler.last_mission_event is None:
             return TaskStatus.NotStarted
         if (
@@ -141,6 +153,17 @@ class Robot(RobotInterface):
         return task_status
 
     def mission_status(self, mission_id: str) -> MissionStatus:
+        try:
+            return self._mission_status(mission_id=mission_id)
+        except RobotException:
+            raise
+        except Exception as e:
+            self._log_unexpected_status_error("mission")
+            raise RobotMissionStatusException(
+                "Unexpected error while reading mission status"
+            ) from e
+
+    def _mission_status(self, mission_id: str) -> MissionStatus:
         if self.current_isar_mission_id != mission_id:
             error_description: str = (
                 f"Attempted to read mission status for mission with ID: {mission_id} but found that a different mission "
@@ -151,6 +174,21 @@ class Robot(RobotInterface):
 
         # In this case we assume that the mission_id is for the current mission
         return self.anymal.get_mission_status()
+
+    def _log_unexpected_status_error(self, status_kind: str) -> None:
+        """Log an unexpected status error along with the event it was derived from.
+
+        ISAR only recovers from ``RobotException`` subclasses. Anything else
+        escapes mission monitoring silently, so log it here while the offending
+        mission event is still available.
+        """
+        logger.exception(
+            "Unexpected error while reading %s status. "
+            "Current ANYmal mission ID: %s. Last mission event: %r",
+            status_kind,
+            self.current_anymal_mission_id,
+            self.anymal.mission_status_handler.last_mission_event,
+        )
 
     def stop(self) -> None:
         """Stop the currently running mission on the robot.
