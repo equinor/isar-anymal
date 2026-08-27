@@ -22,6 +22,26 @@ class SSEHandler:
     def __init__(self):
         self.request_handler: RequestHandler = RequestHandler()
         self.sse_listening_thread: Thread | None = None
+        self.current_response: Response | None = None
+
+    def reconnect(self) -> None:
+        """Close the current stream so the listening thread re-establishes it.
+
+        The stream is opened without a read timeout, so a connection that
+        dies without the server closing it leaves the listening thread
+        blocked forever and no further events are received. Closing the
+        response unblocks that read and the listening loop reconnects.
+        """
+        response: Response | None = self.current_response
+        if response is None:
+            logger.info("No active SSE stream to reconnect")
+            return
+
+        logger.info("Closing the current SSE stream to force a reconnect")
+        try:
+            response.close()
+        except Exception:
+            logger.exception("Failed to close the current SSE stream")
 
     def activate_sse_listening_thread(
         self,
@@ -64,6 +84,8 @@ class SSEHandler:
                 time.sleep(0.1)
                 continue
 
+            self.current_response = response
+
             try:
                 for line in response.iter_lines():
                     event: TEventModel | None = (
@@ -86,6 +108,7 @@ class SSEHandler:
                 time.sleep(0.1)
                 continue
             finally:
+                self.current_response = None
                 response.close()
 
     @staticmethod
