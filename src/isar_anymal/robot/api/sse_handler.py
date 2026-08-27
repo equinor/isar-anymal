@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 
 TEventModel = TypeVar("TEventModel", bound=EventBaseModel)
 
+# Delays between attempts to re-establish a dropped SSE stream. The delay
+# doubles on every consecutive failure and resets once a stream is
+# established, so a server that is down does not cause a hot reconnect loop.
+SSE_RECONNECT_INITIAL_DELAY: float = 0.1
+SSE_RECONNECT_MAX_DELAY: float = 30
+
 
 class SSEHandler:
     def __init__(self):
@@ -69,6 +75,7 @@ class SSEHandler:
         on_event: Callable[[TEventModel], None],
         model_type: TEventModel,
     ) -> None:
+        reconnect_delay: float = SSE_RECONNECT_INITIAL_DELAY
         while True:
             try:
                 response: Response = self.request_handler.get(
@@ -81,9 +88,11 @@ class SSEHandler:
                 logger.exception(
                     f"An unexpected error occurred while subscribing to SSE endpoint {url}"
                 )
-                time.sleep(0.1)
+                reconnect_delay = self._sleep_before_reconnecting(reconnect_delay)
                 continue
 
+            logger.info(f"Connected to SSE endpoint {url}")
+            reconnect_delay = SSE_RECONNECT_INITIAL_DELAY
             self.current_response = response
 
             try:
@@ -98,18 +107,27 @@ class SSEHandler:
                         continue
 
                     on_event(event)
+                logger.info(f"SSE stream {url} ended, will re-establish connection")
             except ChunkedEncodingError, ProtocolError:
-                continue
+                logger.info(
+                    f"SSE stream {url} was interrupted, will re-establish connection"
+                )
             except RequestException, Exception:
                 logger.exception(
                     f"An unexpected error occurred while listening to SSE event {model_type.__name__}, will attempt "
                     f"to re-establish connection"
                 )
-                time.sleep(0.1)
-                continue
             finally:
                 self.current_response = None
                 response.close()
+
+            reconnect_delay = self._sleep_before_reconnecting(reconnect_delay)
+
+    @staticmethod
+    def _sleep_before_reconnecting(delay: float) -> float:
+        """Wait before reconnecting and return the delay to use after that."""
+        time.sleep(delay)
+        return min(delay * 2, SSE_RECONNECT_MAX_DELAY)
 
     @staticmethod
     def _attempt_to_decode_sse_message_to_model(
