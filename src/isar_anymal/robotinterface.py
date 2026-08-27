@@ -20,6 +20,7 @@ from robot_interface.telemetry.mqtt_client import TelemetryParameters
 from isar_anymal.config import settings
 from isar_anymal.open_telemetry.metrics_handler import MetricsHandler
 from isar_anymal.robot.api import API
+from isar_anymal.robot.api.anymal_api.models import MissionEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     InspectionHandler,
 )
@@ -129,15 +130,8 @@ class Robot(RobotInterface):
             ) from e
 
     def _task_status(self, task_id: str) -> TaskStatus:
-        if self.anymal.mission_status_handler.last_mission_event is None:
+        if self._current_mission_event() is None:
             return TaskStatus.NotStarted
-        if (
-            self.anymal.mission_status_handler.last_mission_event.metadata.mission_run_id
-            != self.current_anymal_mission_id
-        ):
-            raise RobotTaskStatusException(
-                "Tried to read the status for a task that was not the current mission id"
-            )
 
         if self.return_to_home_mission_running:
             task_id = settings.DOCK_TASK_ID
@@ -172,8 +166,26 @@ class Robot(RobotInterface):
             logger.error(error_description)
             raise RobotMissionStatusException(error_description)
 
-        # In this case we assume that the mission_id is for the current mission
+        if self._current_mission_event() is None:
+            return MissionStatus.NotStarted
+
         return self.anymal.get_mission_status()
+
+    def _current_mission_event(self) -> MissionEventDto | None:
+        """Return the last mission event, if it belongs to the running mission.
+
+        The ANYmal API replays the most recent event on every subscribe, so
+        after a reconnect the stored event may describe an earlier mission
+        run. Reading status from it reports the previous run's outcome as if
+        it were the current one. ``None`` means "nothing known about the
+        running mission yet", which callers treat as not started.
+        """
+        event = self.anymal.mission_status_handler.last_mission_event
+        if event is None or event.metadata is None:
+            return None
+        if event.metadata.mission_run_id != self.current_anymal_mission_id:
+            return None
+        return event
 
     def _log_unexpected_status_error(self, status_kind: str) -> None:
         """Log an unexpected status error along with the event it was derived from.

@@ -8,6 +8,7 @@ from robot_interface.models.exceptions.robot_exceptions import (
     RobotTaskStatusException,
 )
 from robot_interface.models.mission.mission import Mission
+from robot_interface.models.mission.status import MissionStatus, TaskStatus
 from robot_interface.models.mission.task import (
     AcousticDetectionType,
     ReturnToHome,
@@ -107,20 +108,60 @@ def _robot_without_init(last_mission_event: object) -> Robot:
     return robot
 
 
-def test_that_mission_event_without_metadata_raises_task_status_exception():
+def test_that_mission_event_without_metadata_is_ignored():
     robot: Robot = _robot_without_init(SimpleNamespace(metadata=None))
+
+    assert robot.task_status(task_id="id1") == TaskStatus.NotStarted
+
+
+def _event_for_run(mission_run_id: str) -> SimpleNamespace:
+    return SimpleNamespace(metadata=SimpleNamespace(mission_run_id=mission_run_id))
+
+
+def test_that_task_status_from_a_previous_mission_run_is_ignored():
+    robot: Robot = _robot_without_init(_event_for_run("an-older-mission-run"))
+    robot.anymal.get_task_status = _fail_if_called
+
+    assert robot.task_status(task_id="id1") == TaskStatus.NotStarted
+
+
+def test_that_mission_status_from_a_previous_mission_run_is_ignored():
+    robot: Robot = _robot_without_init(_event_for_run("an-older-mission-run"))
+    robot.anymal.get_mission_status = _fail_if_called
+
+    assert (
+        robot.mission_status(mission_id="isar-mission-id") == MissionStatus.NotStarted
+    )
+
+
+def test_that_mission_status_for_the_current_mission_run_is_reported():
+    robot: Robot = _robot_without_init(_event_for_run("anymal-mission-id"))
+    robot.anymal.get_mission_status = lambda: MissionStatus.InProgress
+
+    assert (
+        robot.mission_status(mission_id="isar-mission-id") == MissionStatus.InProgress
+    )
+
+
+def _fail_if_called(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("status must not be read from a stale mission event")
+
+
+def test_that_unexpected_task_status_error_raises_task_status_exception():
+    robot: Robot = _robot_without_init(_event_for_run("anymal-mission-id"))
+    robot.anymal.get_task_status = _raise_attribute_error
 
     with pytest.raises(RobotTaskStatusException):
         robot.task_status(task_id="id1")
 
 
 def test_that_unexpected_mission_status_error_raises_mission_status_exception():
-    robot: Robot = _robot_without_init(None)
+    robot: Robot = _robot_without_init(_event_for_run("anymal-mission-id"))
     robot.anymal.get_mission_status = _raise_attribute_error
 
     with pytest.raises(RobotMissionStatusException):
         robot.mission_status(mission_id="isar-mission-id")
 
 
-def _raise_attribute_error() -> None:
+def _raise_attribute_error(*_args: object, **_kwargs: object) -> None:
     raise AttributeError("'NoneType' object has no attribute 'status'")
