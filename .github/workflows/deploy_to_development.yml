@@ -36,6 +36,7 @@ jobs:
       image_name: robotics/isar-anymal
       tag: ${{ needs.get-short-sha.outputs.tag }}
       secondary_tag: dev
+      push_to_ghcr: true
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
     secrets:
@@ -54,6 +55,7 @@ jobs:
       image_name: robotics/ads-api
       tag: ${{ needs.get-short-sha.outputs.tag }}
       secondary_tag: dev
+      # ads-api installs licensed ANYbotics packages; ACR only.
       path_to_dockerfile: ads_api/Dockerfile
       path_to_context: ads_api
     secrets:
