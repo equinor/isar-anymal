@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     with:
       registry: roboticsstagingacr.azurecr.io
       image_name: robotics/isar-anymal
@@ -40,6 +41,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     with:
       registry: roboticsstagingacr.azurecr.io
       image_name: robotics/ads-api
