@@ -1,6 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
 from alitra import Frame, Position
 from pytest_mock import MockerFixture
+from robot_interface.models.exceptions.robot_exceptions import (
+    RobotMissionStatusException,
+    RobotTaskStatusException,
+)
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.task import (
     AcousticDetectionType,
@@ -87,3 +93,34 @@ def test_that_return_home_mission_is_started_correctly(
     assert robot.current_anymal_mission_id == expected_anymal_mission_id
     assert len(robot.inspection_handler.inspections_queue) == 0
     assert len(robot.inspection_handler.missions_inspection_queue) == 0
+
+
+def _robot_without_init(last_mission_event: object) -> Robot:
+    """Build a Robot without running __init__, which needs private map data."""
+    robot: Robot = object.__new__(Robot)
+    robot.anymal = SimpleNamespace(
+        mission_status_handler=SimpleNamespace(last_mission_event=last_mission_event)
+    )
+    robot.current_anymal_mission_id = "anymal-mission-id"
+    robot.current_isar_mission_id = "isar-mission-id"
+    robot.return_to_home_mission_running = False
+    return robot
+
+
+def test_that_mission_event_without_metadata_raises_task_status_exception():
+    robot: Robot = _robot_without_init(SimpleNamespace(metadata=None))
+
+    with pytest.raises(RobotTaskStatusException):
+        robot.task_status(task_id="id1")
+
+
+def test_that_unexpected_mission_status_error_raises_mission_status_exception():
+    robot: Robot = _robot_without_init(None)
+    robot.anymal.get_mission_status = _raise_attribute_error
+
+    with pytest.raises(RobotMissionStatusException):
+        robot.mission_status(mission_id="isar-mission-id")
+
+
+def _raise_attribute_error() -> None:
+    raise AttributeError("'NoneType' object has no attribute 'status'")
