@@ -75,6 +75,7 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id = None
         self.current_isar_mission_id = None
         self.anymal.mission_status_handler.last_mission_event = None
+        self.anymal.mission_status_handler.mission_status_sse_handler.reconnect()
         if is_return_to_home_mission(mission=mission):
             self.current_anymal_mission_id = self.anymal.start_dock_mission()
             self.current_isar_mission_id = mission.id
