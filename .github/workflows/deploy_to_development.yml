@@ -41,7 +41,6 @@ jobs:
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
       environment: Development
-      environment: Development
       use_oidc: true
       azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
