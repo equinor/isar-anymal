@@ -27,6 +27,11 @@ jobs:
   build-and-push-dev-image-to-robotics-dev-registry:
     name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
+    # CONTROLLED TEST: single-element matrix, to determine whether the
+    # startup_failure depends on the job having a matrix strategy.
+    strategy:
+      matrix:
+        only: [1]
     uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
     permissions:
       contents: read
