@@ -27,7 +27,7 @@ jobs:
   build-and-push-dev-image-to-robotics-dev-registry:
     name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@bisect/v1-environment
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@bisect/v2-idtoken
     permissions:
       contents: read
       packages: write
