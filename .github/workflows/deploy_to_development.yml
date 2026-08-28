@@ -27,12 +27,7 @@ jobs:
   build-and-push-dev-image-to-robotics-dev-registry:
     name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
-    # CONTROLLED TEST: single-element matrix, to determine whether the
-    # startup_failure depends on the job having a matrix strategy.
-    strategy:
-      matrix:
-        only: [1]
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@7aec39a
     permissions:
       contents: read
       packages: write
@@ -45,12 +40,6 @@ jobs:
       push_to_ghcr: true
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
-      # Authenticate to the registry with a federated credential instead
-      # of the registry password. The environment below is what the OIDC
-      # subject binds to on the Azure side.
-      environment: Development
-      use_oidc: true
-      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
       registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
       registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
@@ -58,7 +47,7 @@ jobs:
   build-and-push-ads-image-to-robotics-dev-registry:
     name: Build and push ads image to robotics dev container registry
     needs: get-short-sha
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@7aec39a
     permissions:
       contents: read
       packages: write
@@ -71,12 +60,6 @@ jobs:
       # ads-api installs licensed ANYbotics packages; ACR only.
       path_to_dockerfile: ads_api/Dockerfile
       path_to_context: ads_api
-      # Authenticate to the registry with a federated credential instead
-      # of the registry password. The environment below is what the OIDC
-      # subject binds to on the Azure side.
-      environment: Development
-      use_oidc: true
-      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
       registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
       registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
