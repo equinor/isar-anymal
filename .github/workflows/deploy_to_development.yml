@@ -27,7 +27,7 @@ jobs:
   build-and-push-dev-image-to-robotics-dev-registry:
     name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@bisect/v3-inputs
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
     permissions:
       contents: read
       packages: write
@@ -41,6 +41,9 @@ jobs:
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
       environment: Development
+      environment: Development
+      use_oidc: true
+      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
       registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
       registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
@@ -48,7 +51,7 @@ jobs:
   build-and-push-ads-image-to-robotics-dev-registry:
     name: Build and push ads image to robotics dev container registry
     needs: get-short-sha
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@7aec39a7a9aae01089396d914edfaa4aa5fac800
+    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
     permissions:
       contents: read
       packages: write
@@ -61,6 +64,9 @@ jobs:
       # ads-api installs licensed ANYbotics packages; ACR only.
       path_to_dockerfile: ads_api/Dockerfile
       path_to_context: ads_api
+      environment: Development
+      use_oidc: true
+      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
       registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
       registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
