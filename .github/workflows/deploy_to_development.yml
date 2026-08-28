@@ -40,6 +40,7 @@ jobs:
       push_to_ghcr: true
       path_to_dockerfile: Dockerfile.Isar
       path_to_context: .
+      environment: Development
     secrets:
       registry_password: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_PASSWORD }}
       registry_username: ${{ secrets.ROBOTICS_ROBOTICSDEVACR_USERNAME }}
