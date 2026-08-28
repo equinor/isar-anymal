@@ -27,6 +27,9 @@ jobs:
   build-and-push-dev-image-to-robotics-dev-registry:
     name: Build and push dev image to robotics dev container registry
     needs: get-short-sha
+    strategy:
+      matrix:
+        only: [1]
     uses: Christdej/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@bisect/a-environment
     permissions:
       contents: read
