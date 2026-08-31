@@ -34,9 +34,6 @@ jobs:
       environment: Staging
       use_oidc: true
       azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-    secrets:
-      registry_password: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_PASSWORD }}
-      registry_username: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_USERNAME }}
 
   build-and-push-latest-release-ads-image-to-robotics-staging-registry:
     name: Build and push latest release ads image to robotics staging registry
@@ -57,8 +54,6 @@ jobs:
       use_oidc: true
       azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     secrets:
-      registry_password: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_PASSWORD }}
-      registry_username: ${{ secrets.ROBOTICS_ROBOTICSSTAGINGACR_USERNAME }}
       anymal_download_password: ${{ secrets.ANYMAL_DOWNLOAD_PASSWORD }}
       anymal_download_username: ${{ secrets.ANYMAL_DOWNLOAD_USER_NAME }}
 
