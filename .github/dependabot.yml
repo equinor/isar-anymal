@@ -1,15 +1,35 @@
 version: 2
 updates:
-  - package-ecosystem: docker
+  # Python dependencies (pyproject.toml + uv.lock).
+  # Replaces the compile_python_requirements_and_create_pr workflow.
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Version updates use Dependabot's native 3-day cooldown.
+      python-patch-minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      # Bundle major bumps separately for explicit review.
+      python-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+  # Dockerfile.Isar and ads_api/Dockerfile.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /ads_api
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      docker-images:
+        patterns: ["*"]
     ignore:
       - dependency-name: python
         update-types:
           - version-update:semver-major
-
-  - package-ecosystem: docker
-    directory: /ads_api
-    schedule:
-      interval: weekly
