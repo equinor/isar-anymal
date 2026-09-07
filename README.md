@@ -14,12 +14,42 @@ implementation for the ANYmal robot.
 
 - Python 3.14+
 - [uv](https://docs.astral.sh/uv/)
-- The [isar](https://github.com/equinor/isar) repository cloned as a sibling directory (`../isar/`)
 
 ### Installation
 
 ```
 uv sync --extra dev
+```
+
+This installs the registry version of ISAR from `uv.lock`; a sibling checkout is not required.
+
+### Developing against a local ISAR checkout (optional)
+
+To work on ISAR and this integration together, clone the [isar](https://github.com/equinor/isar)
+repository as a sibling directory (`../isar/`). After syncing, replace the registry package with
+an editable installation:
+
+```
+uv sync --locked --extra dev
+uv pip install --python .venv/bin/python --no-deps --editable ../isar
+uv run --no-sync pytest
+```
+
+Use `uv run --no-sync` for all commands while using the local checkout (including the lint commands
+below). A normal `uv run` or `uv sync` can replace the editable installation with the locked registry
+version; repeat the editable install after syncing. `--frozen` alone does not prevent syncing.
+
+The `--no-deps` option keeps the integration's locked dependencies installed. Use an ISAR checkout
+compatible with those dependencies; if its requirements change, reconcile them before continuing.
+`uv pip check --python .venv/bin/python` can detect missing or incompatible installed dependencies.
+Python source edits in the sibling checkout are picked up without reinstalling, but metadata or
+dependency changes may require reinstalling and adjusting the environment. These local installs do not change
+`pyproject.toml` or `uv.lock`.
+
+To return to the locked registry version:
+
+```
+uv sync --locked --extra dev
 ```
 
 ### Running tests
@@ -59,8 +89,6 @@ To update all dependencies to the latest versions:
 uv lock --upgrade
 ```
 
-To update all dependencies without pointing to local packages, use:
-
-```
-uv lock --upgrade --no-sources
-```
+The committed configuration and lockfile use registry packages, so `--no-sources` is not needed.
+Keep local editable installations in the development environment rather than committing a sibling
+path in `tool.uv.sources`: Dependabot and standalone checkouts cannot retrieve that external directory.

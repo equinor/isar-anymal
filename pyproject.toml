@@ -45,9 +45,6 @@ dev = [
     "ruff",
 ]
 
-[tool.uv.sources]
-isar = { path = "../isar", editable = true }
-
 [tool.setuptools_scm]
 # This section is empty but required for dynamic versioning.
 
