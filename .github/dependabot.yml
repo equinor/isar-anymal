@@ -18,6 +18,21 @@ updates:
         patterns: ["*"]
         update-types: ["major"]
 
+  # Independent ADS API dependencies (ads_api/requirements.txt).
+  - package-ecosystem: pip
+    directory: /ads_api
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-patch-minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      python-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
   # Dockerfile.Isar and ads_api/Dockerfile.
   - package-ecosystem: docker
     directories:
