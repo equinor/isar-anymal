@@ -69,7 +69,7 @@ class API:
             map_alignment.map_from, map_alignment.map_to, rot_axes="z"
         )
 
-        self.media_stream: MediaStream | None = None
+        self.media_stream = MediaStream(request_handler=self.request_handler)
         self.file_transfer_handler: ANYmalADSFileTransfer = ANYmalADSFileTransfer(
             mission_creation=True
         )
@@ -280,9 +280,7 @@ class API:
         return self.mission_status_handler.get_mission_status()
 
     def generate_media_config(self) -> MediaConfig:
-        if self.media_stream is None or not self.media_stream.is_active():
-            self.media_stream = MediaStream(request_handler=self.request_handler)
-            self.media_stream.activate_stream()
+        self.media_stream.activate_stream()
 
         livestream_url: str
         livestream_token: str

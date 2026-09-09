@@ -1,7 +1,6 @@
-import json
 import logging
 import time
-from threading import Thread
+from threading import Lock, Thread
 from uuid import uuid4
 
 from requests import RequestException, Response
@@ -13,9 +12,15 @@ logger = logging.getLogger(__name__)
 
 
 class MediaStream:
+    RECOVERY_TIMEOUT = 900.0
+    INITIAL_RETRY_DELAY = 5.0
+    MAX_RETRY_DELAY = 30.0
+    KEEPALIVE_INTERVAL = 3.0
+
     def __init__(self, request_handler: RequestHandler) -> None:
         self.request_handler: RequestHandler = request_handler
         self.activate_stream_thread: Thread | None = None
+        self._activation_lock = Lock()
 
     def get_liveview_info(self) -> tuple[str, str]:
         # Get the liveview token, valid for 4 hours
@@ -27,100 +32,88 @@ class MediaStream:
         ).json()["token"]
         return liveview_response["url"], liveview_response["token"]
 
-    def robot_ready_to_stream(self):
-        # Get the tracks
+    def activate_when_active_and_keep_active(self) -> None:
         liveview_sources_url = f"{settings.SERVER_URL}/anymal-api/liveview/sources?anymal={settings.ROBOT_NAME}"
-
-        try:
-            liveview_sources = self.request_handler.get(
-                url=liveview_sources_url,
-            ).json()
-        except RequestException, Exception:
-            logger.exception("Failed to retrieve liveview sources")
-            return False
-
-        for source in liveview_sources["sources"]:
-            if source["frameId"] == "acoustic_camera":
-                continue
-
-            if source["state"] == 1:
-                return True
-
-        return False
-
-    def start_streaming_and_continue_streaming_until_streams_go_offline(self):
-        # Get the tracks
-        liveview_sources_url = f"{settings.SERVER_URL}/anymal-api/liveview/sources?anymal={settings.ROBOT_NAME}"
-        liveview_sources = self.request_handler.get(
-            url=liveview_sources_url,
-        ).json()
-
-        sources = []
-        for source in liveview_sources["sources"]:
-            sources.append(source["frameId"])
-
-        # Unmute
-        tracks: dict = {"tracks": []}
-        for source in sources:
-            tracks["tracks"].append({"frameId": source})
-
         liveview_set_track_url = f"{settings.SERVER_URL}/anymal-api/liveview/tracks?anymal={settings.ROBOT_NAME}"
-        while True:
-            if not self.robot_ready_to_stream():
-                break
-            # Has to be call at least every 10s
+        deadline = time.monotonic() + self.RECOVERY_TIMEOUT
+        retry_delay = self.INITIAL_RETRY_DELAY
+        streaming = False
+        request_error_logged = False
+        logger.info("Waiting up to %.0fs for media streams", self.RECOVERY_TIMEOUT)
+
+        while (remaining := deadline - time.monotonic()) > 0:
             try:
-                self.request_handler.post(
-                    url=liveview_set_track_url,
-                    headers={
-                        "Authorization": f"Bearer {self.request_handler.get_token()}",
-                        "accept": "application/json",
-                        "Content-Type": "application/json",
-                    },
-                    data=json.dumps(tracks),
-                )
-            except RequestException, Exception:
-                logger.exception("Failed to keep media stream active, will retry...")
+                sources = self.request_handler.get(
+                    url=liveview_sources_url,
+                    request_timeout=min(settings.API_REQUEST_TIMEOUT, remaining),
+                ).json()["sources"]
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
 
-            time.sleep(3.0)
+                if any(
+                    source["frameId"] != "acoustic_camera" and source["state"] == 1
+                    for source in sources
+                ):
+                    # Refresh tracks on every attempt, including after reconnecting.
+                    tracks = {
+                        "tracks": [{"frameId": source["frameId"]} for source in sources]
+                    }
+                    self.request_handler.post(
+                        url=liveview_set_track_url,
+                        json_body=tracks,
+                        request_timeout=min(settings.API_REQUEST_TIMEOUT, remaining),
+                    )
+                    if not streaming:
+                        logger.info("Media stream keepalives active")
+                    streaming = True
+                    request_error_logged = False
+                    # Readiness alone must not extend a failing keepalive's lifetime.
+                    deadline = time.monotonic() + self.RECOVERY_TIMEOUT
+                    retry_delay = self.INITIAL_RETRY_DELAY
+                    time.sleep(self.KEEPALIVE_INTERVAL)
+                    continue
+            except RequestException as error:
+                if not request_error_logged:
+                    logger.warning("Media stream request failed; retrying: %s", error)
+                    request_error_logged = True
 
-    def activate_stream(self):
-        if (
-            self.activate_stream_thread is not None
-            and self.activate_stream_thread.is_alive()
-        ):
-            logger.info("Already activating stream")
-            return
-
-        if self.activate_stream_thread is not None:
-            self.activate_stream_thread.join()
-            self.activate_stream_thread = None
-
-        self.activate_stream_thread = Thread(
-            target=self.activate_when_active_and_keep_active,
-            name="ISAR Anymal media stream activate",
-            daemon=True,
-        )
-        self.activate_stream_thread.start()
-
-    def activate_when_active_and_keep_active(self):
-        seconds_to_wait_for_streams_to_become_active: float = 900  # 15 minutes
-        start_time: float = time.time()
-        while (time.time() - start_time) < seconds_to_wait_for_streams_to_become_active:
-            if self.robot_ready_to_stream():
+            if streaming:
+                logger.info("Media streams unavailable; attempting bounded recovery")
+            streaming = False
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
                 break
+            time.sleep(min(retry_delay, remaining))
+            retry_delay = min(retry_delay * 2, self.MAX_RETRY_DELAY)
 
-            time.sleep(5)
+        logger.info(
+            "Media stream recovery expired after %.0fs without a successful "
+            "keepalive; a new media config request can restart it",
+            self.RECOVERY_TIMEOUT,
+        )
 
-        if not self.robot_ready_to_stream():
-            logger.info(
-                "Robot streams are not available after waiting for them to become active"
+    def activate_stream(self) -> None:
+        with self._activation_lock:
+            if (
+                self.activate_stream_thread is not None
+                and self.activate_stream_thread.is_alive()
+            ):
+                return
+
+            if self.activate_stream_thread is not None:
+                self.activate_stream_thread.join()
+
+            self.activate_stream_thread = Thread(
+                target=self.activate_when_active_and_keep_active,
+                name="ISAR Anymal media stream activate",
+                daemon=True,
             )
-            return
+            self.activate_stream_thread.start()
 
-        self.start_streaming_and_continue_streaming_until_streams_go_offline()
-
-    def is_active(self):
-        if self.activate_stream_thread is None:
-            return False
-        return self.activate_stream_thread.is_alive()
+    def is_active(self) -> bool:
+        with self._activation_lock:
+            return (
+                self.activate_stream_thread is not None
+                and self.activate_stream_thread.is_alive()
+            )
