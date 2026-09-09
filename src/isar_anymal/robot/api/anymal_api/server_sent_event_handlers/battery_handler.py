@@ -47,16 +47,18 @@ class BatteryHandler:
         :param battery_status: The battery status received from the callback is expected to
         be an enum of type BatteryStatus.
         """
+        previous_battery_status = self.anymal_reported_battery_status
         self.anymal_reported_battery_status = battery_status
 
         try:
             new_battery_state = self._map_battery_status_to_battery_state(
                 battery_status
             )
-        except RobotTelemetryException:
-            # We don't log the stack trace for RobotTelemetryException as it is caused by BatteryStatus being
-            # NOT_CONNECTED or ERROR. This reduces clutter in our logs.
+        except RobotTelemetryException as error:
             self.battery.state = None
+            # Physical condition events repeat; report each fault transition, not every sample.
+            if battery_status != previous_battery_status:
+                logger.error("%s", error)
             return
         except Exception:
             logger.exception(
@@ -111,5 +113,4 @@ class BatteryHandler:
             error_description: str = (
                 f"Received unhandled battery status: {battery_status}"
             )
-            logger.error(error_description)
             raise RobotTelemetryException(error_description)
