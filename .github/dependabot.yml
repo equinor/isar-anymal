@@ -11,13 +11,9 @@ updates:
     open-pull-requests-limit: 5
     groups:
       # Version updates use Dependabot's native 3-day cooldown.
-      python-patch-minor:
+      python-dependencies:
         patterns: ["*"]
-        update-types: ["patch", "minor"]
-      # Bundle major bumps separately for explicit review.
-      python-major:
-        patterns: ["*"]
-        update-types: ["major"]
+        applies-to: version-updates
 
   # Independent ADS API dependencies (ads_api/requirements.txt).
   - package-ecosystem: pip
