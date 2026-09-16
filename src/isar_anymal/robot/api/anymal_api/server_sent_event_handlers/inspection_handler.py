@@ -47,6 +47,9 @@ from isar_anymal.robot.api.sse_handler import SSEHandler
 
 logger = logging.getLogger(__name__)
 
+INSPECTION_RETRIEVAL_MAX_ATTEMPTS = 6
+INSPECTION_RETRIEVAL_RETRY_INTERVAL = 10
+
 
 class InspectionHandler:
     def __init__(self) -> None:
@@ -140,12 +143,6 @@ def _process_inspection_event(
         )
         return
 
-    try:
-        inspections_queue.remove(inspection_tuple)
-    except ValueError:
-        logger.exception("Failed to remove inspection from queue")
-        return
-
     inspection: Inspection
     robot_pose: Pose = _extract_robot_pose(event=event, transform=transform)
     target_position: Position = _extract_target_position(task, robot_pose)
@@ -204,15 +201,25 @@ def _process_inspection_event(
                 f"Unsupported inspection event type {event.measurement.type} received"
             )
     except RobotRetrieveInspectionException as e:
-        logger.warning(
-            f"Unknown callback event for asset {event.asset_id}. {e.error_description}"
+        logger.error(
+            "Failed to retrieve inspection for asset %s, taskRunId=%s, "
+            "missionRunId=%s. Task remains pending. %s",
+            event.asset_id,
+            event.task_run_uid,
+            event.metadata.mission_run_id,
+            e.error_description,
         )
         return
+
+    final_callback(inspection, mission)
+    try:
+        inspections_queue.remove(inspection_tuple)
+    except ValueError:
+        logger.exception("Failed to remove delivered inspection from queue")
 
     logger.info(
         f"Processed inspection event of inspection type {inspection_type} for tag ID {task.tag_id}"
     )
-    final_callback(inspection, mission)
 
 
 def _process_inspection_value(
@@ -310,32 +317,69 @@ def _process_inspection_blob(
     return file_bytes, metadata_type, file_type, inspection_type, video_duration
 
 
+def _fetch_inspection_filename(
+    task_run_uid: str, request_handler: RequestHandler
+) -> str:
+    # Inspection events can arrive before data-navigator indexes the result.
+    for attempt in range(1, INSPECTION_RETRIEVAL_MAX_ATTEMPTS + 1):
+        try:
+            response = request_handler.get(
+                url=f"{settings.SERVER_URL}/data-navigator-api/inspections?taskRunId={task_run_uid}"
+            )
+            inspection_response_json = response.json()
+        except RequestException as exc:
+            error_description = (
+                f"Failed to query data-navigator for taskRunId={task_run_uid} "
+                f"on attempt {attempt} of {INSPECTION_RETRIEVAL_MAX_ATTEMPTS}"
+            )
+            if attempt == INSPECTION_RETRIEVAL_MAX_ATTEMPTS:
+                raise RobotRetrieveInspectionException(error_description) from exc
+            logger.warning("%s: %s", error_description, exc)
+        else:
+            total_items: int = inspection_response_json.get("totalItems", 0)
+            items = inspection_response_json.get("items") or []
+            if total_items >= 1 and items:
+                if total_items > 1:
+                    logger.warning(
+                        "Data-navigator returned %d items; using the first",
+                        total_items,
+                    )
+                try:
+                    file_name = items[0]["inspection"]["filename"]
+                except (KeyError, TypeError) as exc:
+                    raise RobotRetrieveInspectionException(
+                        f"Data-navigator response missing inspection filename for "
+                        f"taskRunId={task_run_uid}"
+                    ) from exc
+                if not isinstance(file_name, str) or not file_name:
+                    raise RobotRetrieveInspectionException(
+                        f"Data-navigator response has invalid inspection filename for "
+                        f"taskRunId={task_run_uid}"
+                    )
+                return file_name
+
+            logger.warning(
+                "Data-navigator returned no inspection items for taskRunId=%s "
+                "on attempt %d of %d",
+                task_run_uid,
+                attempt,
+                INSPECTION_RETRIEVAL_MAX_ATTEMPTS,
+            )
+
+        if attempt < INSPECTION_RETRIEVAL_MAX_ATTEMPTS:
+            time.sleep(INSPECTION_RETRIEVAL_RETRY_INTERVAL)
+
+    raise RobotRetrieveInspectionException(
+        f"Data-navigator returned no inspection items for taskRunId={task_run_uid} "
+        f"after {INSPECTION_RETRIEVAL_MAX_ATTEMPTS} attempts"
+    )
+
+
 def _fetch_blob_via_data_navigator(
     task_run_uid: str, request_handler: RequestHandler
 ) -> tuple[bytes, str]:
-    inspection_response: Response = request_handler.get(
-        url=f"{settings.SERVER_URL}/data-navigator-api/inspections?taskRunId={task_run_uid}"
-    )
-    inspection_response_json = inspection_response.json()
-    total_items: int = inspection_response_json.get("totalItems", 0)
-    items = inspection_response_json.get("items") or []
-
-    if total_items < 1 or not items:
-        raise RobotRetrieveInspectionException(
-            f"Data-navigator returned no inspection items for "
-            f"taskRunId={task_run_uid}"
-        )
-    if total_items > 1:
-        logger.warning("Data-navigator returned %d items; using the first", total_items)
-
-    try:
-        file_name = items[0]["inspection"]["filename"]
-    except (KeyError, TypeError) as exc:
-        raise RobotRetrieveInspectionException(
-            f"Data-navigator response missing inspection filename for "
-            f"taskRunId={task_run_uid}"
-        ) from exc
-    max_retries: int = 30
+    file_name = _fetch_inspection_filename(task_run_uid, request_handler)
+    max_retries = INSPECTION_RETRIEVAL_MAX_ATTEMPTS
     attempt_number: int = 0
     file_response: Response | None = None
     while attempt_number < max_retries:
@@ -348,7 +392,8 @@ def _fetch_blob_via_data_navigator(
             logger.warning(
                 f"Failed to retrieve file on attempt {attempt_number} of {max_retries}"
             )
-            time.sleep(1)
+            if attempt_number < max_retries:
+                time.sleep(INSPECTION_RETRIEVAL_RETRY_INTERVAL)
             continue
 
         break
