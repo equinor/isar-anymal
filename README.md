@@ -8,6 +8,18 @@ Running the full ISAR system requires an installation of a robot which satisfies
 [interface](https://github.com/equinor/isar/blob/main/src/robot_interface/robot_interface.py). isar-anymal is an
 implementation for the ANYmal robot.
 
+## Video inspections
+
+`take_video` and `take_thermal_video` record normal-camera and thermal-camera video,
+respectively. Both tasks require a robot pose, target position, and a finite, positive
+`duration` in seconds. Optional zoom dimensions control the target size.
+
+The integration generates `visual_inspection_video_recording` objects and executes
+`visual_inspection_video_recording_behavior_plugins::Inspect`, which must be available
+on the robot. Audio recording is disabled. Results are retrieved through data-navigator
+and returned as ISAR `Video` or `ThermalVideo` inspections with the actual recorded
+duration and the task's tag, description, and analysis types.
+
 ## Local development
 
 ### Prerequisites

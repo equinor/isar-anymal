@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import time
 from pathlib import Path
@@ -14,7 +15,12 @@ from robot_interface.models.exceptions.robot_exceptions import (
 )
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
-from robot_interface.models.mission.task import TASKS, TaskTypes
+from robot_interface.models.mission.task import (
+    TASKS,
+    TakeThermalVideo,
+    TakeVideo,
+    TaskTypes,
+)
 from robot_interface.models.robots.battery_state import BatteryState
 from robot_interface.models.robots.media import MediaConfig, MediaConnectionType
 from robot_interface.telemetry.payloads import (
@@ -150,7 +156,16 @@ class API:
         task: TASKS,
         task_type: str,
     ) -> dict:
-        return {
+        if isinstance(task, (TakeVideo, TakeThermalVideo)) and (
+            not math.isfinite(task.duration) or task.duration <= 0
+        ):
+            error_description = (
+                f"Video duration must be finite and positive for task {task.id}"
+            )
+            logger.error(error_description)
+            raise RobotInfeasibleMissionException(error_description)
+
+        inspection = {
             "poi": {
                 "pos": {
                     "x": target_position.x,
@@ -189,6 +204,9 @@ class API:
                 },
             },
         }
+        if isinstance(task, (TakeVideo, TakeThermalVideo)):
+            inspection["poi"]["recording_duration"] = task.duration
+        return inspection
 
     @staticmethod
     def extract_task_type(task) -> str:
@@ -197,6 +215,10 @@ class API:
             task_type = "visual"
         elif task.type == TaskTypes.TakeThermalImage:
             task_type = "thermal"
+        elif task.type == TaskTypes.TakeVideo:
+            task_type = "video"
+        elif task.type == TaskTypes.TakeThermalVideo:
+            task_type = "thermal_video"
         elif task.type == TaskTypes.TakeCO2Measurement:
             task_type = "co2"
         elif task.type == TaskTypes.TakeAcousticMeasurement:
