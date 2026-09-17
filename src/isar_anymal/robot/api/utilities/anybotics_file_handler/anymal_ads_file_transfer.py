@@ -24,6 +24,7 @@ from isar_anymal.robot.api.utilities.anybotics_file_handler.environment_utils im
     nav_zone,
     relation,
     thermal_inspection,
+    video_inspection,
     visual_inspection,
 )
 from isar_anymal.robot.api.utilities.anybotics_file_handler.mission_utils import (
@@ -225,6 +226,8 @@ class ANYmalADSFileTransfer:
             item_data = {
                 "thermal": {"suffix": "VIT", "type_data": thermal_inspection},
                 "visual": {"suffix": "VIS", "type_data": visual_inspection},
+                "video": {"suffix": "VID", "type_data": video_inspection},
+                "thermal_video": {"suffix": "TVID", "type_data": video_inspection},
                 "co2": {"suffix": "CO2", "type_data": visual_inspection},
                 "acoustic": {"suffix": "ACO", "type_data": acoustic_inspection},
             }
@@ -247,11 +250,17 @@ class ANYmalADSFileTransfer:
                 }
             )
 
-            if poi["type"] == "visual" and "width" in poi:
+            if poi["type"] in ("visual", "video", "thermal_video") and "width" in poi:
                 this_inspection["size"]["width"] = poi["width"]
 
-            if poi["type"] == "visual" and "height" in poi:
+            if poi["type"] in ("visual", "video", "thermal_video") and "height" in poi:
                 this_inspection["size"]["height"] = poi["height"]
+
+            if poi["type"] in ("video", "thermal_video"):
+                this_inspection["camera_type"] = (
+                    "thermal" if poi["type"] == "thermal_video" else "normal"
+                )
+                this_inspection["recording_duration"] = poi["recording_duration"]
 
             if poi["type"] == "acoustic":
                 this_inspection["detection_type"] = poi["detection_type"]
@@ -346,6 +355,20 @@ class ANYmalADSFileTransfer:
                 "task_prefix": "Inspect",
                 "item_suffix": "VIS",
                 "plugin": "visual_inspection_simple_behavior_plugins",
+                "action": "Inspect",
+                "mission_task": simple_inspection_task,
+            },
+            "video": {
+                "task_prefix": "Inspect",
+                "item_suffix": "VID",
+                "plugin": "visual_inspection_video_recording_behavior_plugins",
+                "action": "Inspect",
+                "mission_task": simple_inspection_task,
+            },
+            "thermal_video": {
+                "task_prefix": "Inspect",
+                "item_suffix": "TVID",
+                "plugin": "visual_inspection_video_recording_behavior_plugins",
                 "action": "Inspect",
                 "mission_task": simple_inspection_task,
             },

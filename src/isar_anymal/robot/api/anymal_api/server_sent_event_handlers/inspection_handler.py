@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 from collections import deque
 from collections.abc import Callable
@@ -22,11 +23,13 @@ from robot_interface.models.inspection.inspection import (
     Inspection,
     InspectionMetadata,
     InspectionValue,
+    ThermalVideo,
     ThermalVideoMetadata,
+    Video,
     VideoMetadata,
 )
 from robot_interface.models.mission.mission import Mission
-from robot_interface.models.mission.task import TASKS
+from robot_interface.models.mission.task import TASKS, TakeThermalVideo, TakeVideo
 
 from isar_anymal.config import settings
 from isar_anymal.robot.api.anymal_api.enums import (
@@ -167,7 +170,9 @@ def _process_inspection_event(
                 file_type,
                 inspection_type,
                 video_duration,
-            ) = _process_inspection_blob(event=event, request_handler=request_handler)
+            ) = _process_inspection_blob(
+                event=event, request_handler=request_handler, task=task
+            )
 
             if file_type.find(",") >= 0:
                 file_type = file_type[file_type.find(",") + 1 : len(file_type)]
@@ -266,13 +271,13 @@ def _process_inspection_value(
 
 
 def _process_inspection_blob(
-    event: InspectionEventDto, request_handler: RequestHandler
-) -> tuple[bytes, type[InspectionMetadata], str, type[Inspection], int | None]:
+    event: InspectionEventDto, request_handler: RequestHandler, task: TASKS
+) -> tuple[bytes, type[InspectionMetadata], str, type[Inspection], float | None]:
     file_bytes: bytes
     metadata_type: type[InspectionMetadata]
     file_type: str
     inspection_type: type[Inspection]
-    video_duration: int | None = None
+    video_duration: float | None = None
 
     # if event.measurement.type == InspectionMeasurementType.IMT_THERMAL:
     #     metadata_type = ThermalImageMetadata
@@ -290,15 +295,33 @@ def _process_inspection_blob(
             task_run_uid=event.task_run_uid, request_handler=request_handler
         )
 
-    # elif event.measurement.type == InspectionMeasurementType.IMT_VIDEO:
-    #     metadata_type = VideoMetadata
-    #     inspection_type = Video
+    elif event.measurement.type == InspectionMeasurementType.IMT_VIDEO:
+        if not isinstance(task, (TakeVideo, TakeThermalVideo)):
+            raise RobotRetrieveInspectionException(
+                f"Received video for non-video task {task.id} of type {task.type}"
+            )
+        try:
+            video_data = VideoMeasurementDto.model_validate(event.measurement.data)
+        except ValidationError as e:
+            raise RobotRetrieveInspectionException(
+                f"Failed to parse video measurement for task {task.id}"
+            ) from e
+        video_duration = video_data.duration
+        if not math.isfinite(video_duration) or video_duration <= 0:
+            raise RobotRetrieveInspectionException(
+                f"Invalid recorded video duration for task {task.id}: {video_duration}"
+            )
 
-    #     video_object: AnymalVideo = event.measurement.video
-    #     file_bytes = video_object.video_data
-    #     file_type = video_object.file_type
-    #     video_duration = video_object.duration
-    #     # We can also gather the frame_id, camera_type, timestamp and several other metadata
+        # Both cameras emit IMT_VIDEO; use the scheduled task to select the ISAR type.
+        if isinstance(task, TakeThermalVideo):
+            metadata_type = ThermalVideoMetadata
+            inspection_type = ThermalVideo
+        else:
+            metadata_type = VideoMetadata
+            inspection_type = Video
+        file_bytes, file_type = _fetch_blob_via_data_navigator(
+            task_run_uid=event.task_run_uid, request_handler=request_handler
+        )
 
     # elif event.measurement.type == InspectionMeasurementType.IMT_AUDITIVE:
     #     metadata_type = AudioMetadata
@@ -522,23 +545,24 @@ def _create_blob_inspection(
     file_type: str,
     task: TASKS,
     file_bytes: bytes,
-    video_duration: int | None = None,
+    video_duration: float | None = None,
 ) -> Inspection:
-    inspection_metadata: InspectionMetadata = metadata_type(
-        start_time=datetime.now(UTC),
-        robot_pose=robot_pose,
-        target_position=target_position,
-        file_type=file_type,
-    )
-
-    inspection_metadata.tag_id = task.tag_id
-    inspection_metadata.inspection_description = task.inspection_description
-    inspection_metadata.analysis_types = task.analysis_types
-
-    if video_duration is not None and isinstance(
-        inspection_metadata, (VideoMetadata, ThermalVideoMetadata, AudioMetadata)
-    ):
-        inspection_metadata.duration = video_duration
+    metadata = {
+        "start_time": datetime.now(UTC),
+        "robot_pose": robot_pose,
+        "target_position": target_position,
+        "file_type": file_type,
+        "tag_id": task.tag_id,
+        "inspection_description": task.inspection_description,
+        "analysis_types": task.analysis_types,
+    }
+    if issubclass(metadata_type, (VideoMetadata, ThermalVideoMetadata, AudioMetadata)):
+        if video_duration is None:
+            raise RobotRetrieveInspectionException(
+                f"Missing recording duration for task {task.id}"
+            )
+        metadata["duration"] = video_duration
+    inspection_metadata = metadata_type.model_validate(metadata)
 
     return inspection_type(metadata=inspection_metadata, id=task.id, data=file_bytes)
 

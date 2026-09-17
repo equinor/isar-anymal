@@ -82,6 +82,32 @@ type: visual_inspection_simple""",
     Loader=yaml.FullLoader,
 )
 
+video_inspection = yaml.load(
+    """camera_type: normal
+label: "[label]"
+name: "[name]"
+pose:
+    header:
+        frame_id: map
+    pose:
+        orientation:
+            w: 0.737308988858222
+            x: 0.674585715570665
+            y: 0.0136916610744799
+            z: -0.0334978464069242
+        position:
+            x: 0
+            y: 0
+            z: 0
+record_audio: false
+recording_duration: "[recording_duration]"
+size:
+    height: 10
+    width: 10
+type: visual_inspection_video_recording""",
+    Loader=yaml.FullLoader,
+)
+
 relation = yaml.load(
     """child: T1_1_nav
 parent: T1_1_navZone""",
