@@ -111,11 +111,40 @@ def create_video_environment(
     return item, tasks
 
 
+def process_video_event(
+    task: TakeVideo | TakeThermalVideo, event: Mock, mocker: MockerFixture
+) -> Video | ThermalVideo:
+    event.measurement.data.camera_type = (
+        "thermal" if isinstance(task, TakeThermalVideo) else "normal"
+    )
+    mission = Mission(id="mission-1", name="Video mission", tasks=[task])
+    mocker.patch.object(
+        inspection_handler, "_extract_robot_pose", return_value=task.robot_pose
+    )
+    mocker.patch.object(
+        inspection_handler,
+        "_fetch_blob_via_data_navigator",
+        return_value=(b"recorded video", "mp4"),
+    )
+    callback = Mock()
+
+    inspection_handler._process_inspection_event(
+        event,
+        deque([(task, "asset-1")]),
+        deque([("run-1", mission)]),
+        Mock(spec=Transform),
+        callback,
+        Mock(spec=RequestHandler),
+    )
+
+    return callback.call_args.args[0]
+
+
 @pytest.mark.parametrize(
     "task_class, expected_camera",
     [(TakeVideo, "normal"), (TakeThermalVideo, "thermal")],
 )
-def test_video_environment_selects_camera_and_duration_without_audio(
+def test_video_environment_selects_camera_for_task_type(
     task_class: type[TakeVideo | TakeThermalVideo],
     expected_camera: str,
     file_transfer: ANYmalADSFileTransfer,
@@ -125,7 +154,30 @@ def test_video_environment_selects_camera_and_duration_without_audio(
     item, _ = create_video_environment(file_transfer, task)
 
     assert item["camera_type"] == expected_camera
-    assert item["recording_duration"] == 7.5
+
+
+@pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
+def test_video_environment_preserves_requested_recording_duration(
+    task_class: type[TakeVideo | TakeThermalVideo],
+    file_transfer: ANYmalADSFileTransfer,
+) -> None:
+    task = build_video_task(task_class)
+    task.duration = 12.5
+
+    item, _ = create_video_environment(file_transfer, task)
+
+    assert item["recording_duration"] == 12.5
+
+
+@pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
+def test_video_environment_disables_audio_recording(
+    task_class: type[TakeVideo | TakeThermalVideo],
+    file_transfer: ANYmalADSFileTransfer,
+) -> None:
+    task = build_video_task(task_class)
+
+    item, _ = create_video_environment(file_transfer, task)
+
     assert item["record_audio"] is False
 
 
@@ -177,41 +229,47 @@ def test_video_poi_creation_rejects_nonpositive_or_nonfinite_duration(
 
 
 @pytest.mark.parametrize(
-    "task_class, camera_type, expected_result",
-    [(TakeVideo, "normal", Video), (TakeThermalVideo, "thermal", ThermalVideo)],
+    "task_class, expected_result",
+    [(TakeVideo, Video), (TakeThermalVideo, ThermalVideo)],
 )
-def test_video_callback_returns_camera_specific_result_with_bytes_and_actual_duration(
+def test_video_callback_returns_inspection_type_for_scheduled_task(
     task_class: type[TakeVideo | TakeThermalVideo],
-    camera_type: str,
     expected_result: type[Video | ThermalVideo],
     video_event: Mock,
     mocker: MockerFixture,
 ) -> None:
     task = build_video_task(task_class)
-    video_event.measurement.data.camera_type = camera_type
-    mission = Mission(id="mission-1", name="Video mission", tasks=[task])
-    mocker.patch.object(
-        inspection_handler, "_extract_robot_pose", return_value=task.robot_pose
-    )
-    mocker.patch.object(
-        inspection_handler,
-        "_fetch_blob_via_data_navigator",
-        return_value=(b"recorded video", "mp4"),
-    )
-    callback = Mock()
 
-    inspection_handler._process_inspection_event(
-        video_event,
-        deque([(task, "asset-1")]),
-        deque([("run-1", mission)]),
-        Mock(spec=Transform),
-        callback,
-        Mock(spec=RequestHandler),
-    )
+    inspection = process_video_event(task, video_event, mocker)
 
-    inspection, _ = callback.call_args.args
     assert isinstance(inspection, expected_result)
+
+
+@pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
+def test_video_callback_preserves_downloaded_video_bytes(
+    task_class: type[TakeVideo | TakeThermalVideo],
+    video_event: Mock,
+    mocker: MockerFixture,
+) -> None:
+    task = build_video_task(task_class)
+
+    inspection = process_video_event(task, video_event, mocker)
+
     assert inspection.data == b"recorded video"
+
+
+@pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
+def test_video_callback_uses_recorded_duration_instead_of_requested_duration(
+    task_class: type[TakeVideo | TakeThermalVideo],
+    video_event: Mock,
+    mocker: MockerFixture,
+) -> None:
+    task = build_video_task(task_class)
+    task.duration = 7.5
+    video_event.measurement.data.duration = 7.25
+
+    inspection = process_video_event(task, video_event, mocker)
+
     assert inspection.metadata.duration == 7.25
 
 
