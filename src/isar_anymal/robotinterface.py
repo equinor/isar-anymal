@@ -24,7 +24,6 @@ from isar_anymal.robot.api.anymal_api.models import MissionEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     InspectionHandler,
 )
-from isar_anymal.robot.api.utilities.mission import is_return_to_home_mission
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +74,6 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id = None
         self.current_isar_mission_id = None
         self.anymal.mission_status_handler.last_mission_event = None
-        if is_return_to_home_mission(mission=mission):
-            self.current_anymal_mission_id = self.anymal.start_dock_mission()
-            self.current_isar_mission_id = mission.id
-            self.return_to_home_mission_running = True
-            return
 
         self.return_to_home_mission_running = False
         mission_id: str | None
@@ -117,6 +111,14 @@ class Robot(RobotInterface):
             self.inspection_handler.inspections_queue.append(
                 (task, anymal_point_of_interest_name[0])
             )
+
+    def initiate_return_home(self, mission_id: str) -> None:
+        logger.info(f"Received request to return home with ID {mission_id}")
+
+        self.anymal.mission_status_handler.last_mission_event = None
+        self.current_anymal_mission_id = self.anymal.start_dock_mission()
+        self.current_isar_mission_id = mission_id
+        self.return_to_home_mission_running = True
 
     def task_status(self, task_id: str) -> TaskStatus:
         try:
