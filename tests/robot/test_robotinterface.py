@@ -11,7 +11,6 @@ from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.status import MissionStatus, TaskStatus
 from robot_interface.models.mission.task import (
     AcousticDetectionType,
-    ReturnToHome,
     TakeAcousticMeasurement,
     TakeCO2Measurement,
     TakeImage,
@@ -82,15 +81,11 @@ def test_that_return_home_mission_is_started_correctly(
         robot=robot
     )
 
-    mission: Mission = Mission(
-        id="id",
-        name="return_home_mission",
-        tasks=[ReturnToHome()],
-    )
+    mission_id = "id"
 
-    robot.initiate_mission(mission=mission)
+    robot.initiate_return_home(mission_id)
 
-    assert robot.current_isar_mission_id == mission.id
+    assert robot.current_isar_mission_id == mission_id
     assert robot.current_anymal_mission_id == expected_anymal_mission_id
     assert len(robot.inspection_handler.inspections_queue) == 0
     assert len(robot.inspection_handler.missions_inspection_queue) == 0
