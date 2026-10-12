@@ -5,8 +5,9 @@ import time
 from pathlib import Path
 
 from alitra import Frame, MapAlignment, Pose, Position, Transform, align_maps
-from requests import Response
+from requests import RequestException, Response
 from robot_interface.models.exceptions.robot_exceptions import (
+    RobotCommunicationException,
     RobotException,
     RobotInfeasibleMissionException,
     RobotTelemetryNoUpdateException,
@@ -337,9 +338,15 @@ class API:
         return RobotStatus.Available
 
     def robot_is_online(self) -> bool:
-        connection_response: Response = self.request_handler.get(
-            url=f"{settings.SERVER_URL}/anymal-api/connection/"
-        )
+        try:
+            connection_response: Response = self.request_handler.get(
+                url=f"{settings.SERVER_URL}/anymal-api/connection/"
+            )
+        except RequestException as exc:
+            raise RobotCommunicationException(
+                f"Failed to retrieve connection status for robot {settings.ROBOT_NAME}: {exc}"
+            ) from exc
+
         for connection_info in connection_response.json():
             if connection_info["anymalName"] != settings.ROBOT_NAME:
                 continue
