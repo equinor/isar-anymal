@@ -410,10 +410,15 @@ def _fetch_blob_via_data_navigator(
             file_response = request_handler.get(
                 url=f"{settings.SERVER_URL}/data-navigator-api/inspections/raw-data/{file_name}"
             )
-        except RequestException:
+        except RequestException as exc:
             attempt_number += 1
             logger.warning(
-                f"Failed to retrieve file on attempt {attempt_number} of {max_retries}"
+                "Failed to retrieve file %s for taskRunId=%s on attempt %d of %d: %s",
+                file_name,
+                task_run_uid,
+                attempt_number,
+                max_retries,
+                exc,
             )
             if attempt_number < max_retries:
                 time.sleep(INSPECTION_RETRIEVAL_RETRY_INTERVAL)
