@@ -6,7 +6,7 @@ from threading import Thread
 from typing import TypeVar
 
 from pydantic import ValidationError
-from requests import JSONDecodeError, RequestException, Response
+from requests import ConnectionError, JSONDecodeError, Response, Timeout
 from requests.exceptions import ChunkedEncodingError
 from urllib3.exceptions import ProtocolError
 
@@ -64,7 +64,17 @@ class SSEHandler:
                     stream=True,
                 )
                 response.raise_for_status()
-            except RequestException, Exception:
+            except (ConnectionError, Timeout) as e:
+                logger.warning(
+                    "SSE connection to %s failed (%s: %s); reconnecting in %gs",
+                    url,
+                    type(e).__name__,
+                    e,
+                    reconnect_delay,
+                )
+                reconnect_delay = self._sleep_before_reconnecting(reconnect_delay)
+                continue
+            except Exception:
                 logger.exception(
                     f"An unexpected error occurred while subscribing to SSE endpoint {url}"
                 )
@@ -91,7 +101,15 @@ class SSEHandler:
                 logger.info(
                     f"SSE stream {url} was interrupted, will re-establish connection"
                 )
-            except RequestException, Exception:
+            except (ConnectionError, Timeout) as e:
+                logger.warning(
+                    "SSE connection to %s failed (%s: %s); reconnecting in %gs",
+                    url,
+                    type(e).__name__,
+                    e,
+                    reconnect_delay,
+                )
+            except Exception:
                 logger.exception(
                     f"An unexpected error occurred while listening to SSE event {model_type.__name__}, will attempt "
                     f"to re-establish connection"
