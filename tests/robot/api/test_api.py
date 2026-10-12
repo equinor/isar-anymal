@@ -1,13 +1,22 @@
 from pathlib import Path
+from threading import Event
 
 import pytest
 from alitra import Frame, Orientation, Pose, Position
+from isar.models.events import RobotAsyncEvents
+from isar.robot.robot_status import RobotStatusThread
 from pytest_mock import MockerFixture
+from requests import ConnectionError, HTTPError, RequestException, Timeout
+from robot_interface.models.exceptions.robot_exceptions import (
+    RobotCommunicationException,
+)
 from robot_interface.models.inspection.inspection import Image, ImageMetadata
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
 from robot_interface.models.mission.task import Roi, TakeImage
 from robot_interface.models.robots.battery_state import BatteryState
+from robot_interface.robot_interface import RobotInterface
 
+from isar_anymal.config import settings
 from isar_anymal.robot.api.anymal_api.enums import (
     ANYmalMissionStatus,
     ANYmalTaskStatus,
@@ -208,6 +217,68 @@ def test_robot_status_not_home_when_battery_is_not_charging_nor_full(mocker) -> 
 
     robot_status: RobotStatus = anymal.get_robot_status()
     assert robot_status != RobotStatus.Home
+
+
+@pytest.mark.parametrize("error_type", [ConnectionError, Timeout, HTTPError])
+def test_robot_status_request_failure_raises_communication_exception(
+    mocker: MockerFixture, error_type: type[RequestException]
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    anymal = API()
+    error = error_type("ANYmal Cloud unavailable")
+    mocker.patch.object(anymal.request_handler, "get", side_effect=error)
+
+    with pytest.raises(RobotCommunicationException) as exc_info:
+        anymal.get_robot_status()
+
+    assert exc_info.value.__cause__ is error
+    assert settings.ROBOT_NAME in exc_info.value.error_description
+    assert str(error) in exc_info.value.error_description
+
+
+@pytest.mark.parametrize(
+    "connection_status, expected_status",
+    [
+        ("CS_CONNECTED", RobotStatus.Home),
+        ("CS_DISCONNECTED", RobotStatus.Offline),
+    ],
+)
+def test_robot_status_polling_recovers_after_request_failure(
+    mocker: MockerFixture, caplog, connection_status: str, expected_status: RobotStatus
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    anymal = API()
+    anymal.battery_handler.battery.state = BatteryState.Charging
+    anymal.battery_handler.battery.level = 50.0
+    response = mocker.Mock()
+    response.json.return_value = [
+        {"anymalName": settings.ROBOT_NAME, "connectionStatus": connection_status}
+    ]
+    request = mocker.patch.object(
+        anymal.request_handler,
+        "get",
+        side_effect=[
+            ConnectionError("Connection refused"),
+            Timeout("Timed out"),
+            response,
+        ],
+    )
+    robot = mocker.Mock(spec=RobotInterface)
+    robot.robot_status.side_effect = anymal.get_robot_status
+    signal_exit = mocker.Mock(spec=Event)
+    signal_exit.wait.side_effect = [False, False, False, True]
+    events = RobotAsyncEvents()
+    mocker.patch("isar.robot.robot_status.time.sleep")
+    thread = RobotStatusThread(
+        robot=robot, signal_exit=signal_exit, robot_async_events=events
+    )
+
+    thread.run()
+
+    assert request.call_count == 3
+    assert robot.robot_status.call_count == 3
+    assert events.robot_status_update.check() == expected_status
+    assert caplog.text.count("Failed to retrieve robot status:") == 2
 
 
 @pytest.mark.parametrize(
