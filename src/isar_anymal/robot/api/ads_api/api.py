@@ -9,6 +9,8 @@ from robot_interface.models.exceptions.robot_exceptions import (
     RobotCommunicationException,
 )
 
+from isar_anymal.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,8 +20,8 @@ class SendFileResponse(BaseModel):
     error_description: str | None = None
 
 
-SEND_FILE_URL: str = "http://0.0.0.0:8081/send-file-to-robot-computer"
-GET_FILE_URL: str = "http://0.0.0.0:8081/get-file-from-robot-computer"
+SEND_FILE_URL: str = f"{settings.ADS_SERVER_URL}/send-file-to-robot-computer"
+GET_FILE_URL: str = f"{settings.ADS_SERVER_URL}/get-file-from-robot-computer"
 
 
 def send_file_through_ads_api(
