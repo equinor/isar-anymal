@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # Server settings
     SERVER_URL: str = Field(default="http://localhost:11314")
+    ADS_SERVER_URL: str = Field(default="http://0.0.0.0:8081")
 
     # File transfer
     ENVIRONMENT_NAME: str = Field(default="northern_lights")
