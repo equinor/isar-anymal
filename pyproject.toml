@@ -20,6 +20,8 @@ classifiers = [
 ]
 dependencies = [
     "alitra",
+    "livekit>=1,<2",
+    "av>=16,<20",
     "isar>=2.6.1",
     "numpy",
     "opentelemetry-exporter-otlp>=1.38.0",
