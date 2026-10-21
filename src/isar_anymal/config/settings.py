@@ -1,4 +1,5 @@
 from importlib.resources import as_file, files
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +16,11 @@ class Settings(BaseSettings):
         super().__init__(_env_file=env_file)
 
     ROBOT_NAME: str = Field(default="d104")
+
+    RECORDING_DATA_DIRECTORY: Path = Field(
+        default=Path("./recordings"),
+        validation_alias="ISAR_RECORDING_DATA_DIRECTORY",
+    )
 
     # The basis for a coordinate transform between robot and asset maps
     MAP_NAME: str = Field(default="klab_compressor")
