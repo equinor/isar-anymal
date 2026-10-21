@@ -1,7 +1,9 @@
 import logging
 from collections.abc import Callable
+from functools import partial
 from threading import Thread
 
+from robot_interface.mission_recording import MissionRecorder
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotException,
     RobotInfeasibleMissionException,
@@ -14,6 +16,7 @@ from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
 from robot_interface.models.mission.task import InspectionTask
 from robot_interface.models.robots.media import MediaConfig
+from robot_interface.recording_publisher import RecordingPublisher
 from robot_interface.robot_interface import RobotInterface
 from robot_interface.telemetry.mqtt_client import TelemetryParameters
 
@@ -24,6 +27,8 @@ from isar_anymal.robot.api.anymal_api.models import MissionEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     InspectionHandler,
 )
+from isar_anymal.robot.recording.livekit_capture import capture_livekit
+from isar_anymal.robot.recording.mission_recorder import AnymalMissionRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,17 @@ class Robot(RobotInterface):
         logging.getLogger("httpcore").setLevel(logging.WARNING)
 
         _reenable_package_loggers()
+
+    def get_mission_recorder(
+        self, publisher: RecordingPublisher | None = None
+    ) -> MissionRecorder | None:
+        if publisher is None:
+            raise RuntimeError("Recording requires a platform publisher")
+        return AnymalMissionRecorder(
+            partial(capture_livekit, self.anymal.generate_media_config),
+            publisher,
+            directory=settings.RECORDING_DATA_DIRECTORY,
+        )
 
     def initiate_mission(self, mission: Mission) -> None:
         """Start a new ISAR mission on the ANYmal robot.

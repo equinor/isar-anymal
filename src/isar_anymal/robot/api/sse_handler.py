@@ -60,7 +60,9 @@ class SSEHandler:
             try:
                 response: Response = self.request_handler.get(
                     url=url,
-                    request_timeout=None,
+                    # Bound silent half-open connections after a network restart.
+                    # The vendor/mock SSE endpoints send regular events/heartbeats.
+                    request_timeout=(10, 30),
                     stream=True,
                 )
                 response.raise_for_status()
