@@ -257,7 +257,7 @@ class Robot(RobotInterface):
         logger.info("Received request to resume currently active mission")
         self.anymal.resume_mission(self.current_anymal_mission_id)
 
-    def get_inspection(self, task: InspectionTask) -> Inspection:
+    def get_inspections(self, task: InspectionTask) -> list[Inspection]:
         raise NotImplementedError
 
     def register_inspection_callback(
