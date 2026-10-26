@@ -609,8 +609,8 @@ wheels = [
 
 [[package]]
 name = "isar"
-version = "2.7.1.dev2+g8d363e154"
-source = { git = "https://github.com/equinor/isar.git?rev=8d363e1544db1373aad6378bf49ce919e550f1f0#8d363e1544db1373aad6378bf49ce919e550f1f0" }
+version = "2.7.1.dev3+g1aa36d097"
+source = { git = "https://github.com/equinor/isar.git?rev=1aa36d097674f362a84a405d959d1af02f9655c2#1aa36d097674f362a84a405d959d1af02f9655c2" }
 dependencies = [
     { name = "alitra" },
     { name = "azure-identity" },
@@ -673,7 +673,7 @@ requires-dist = [
     { name = "alitra" },
     { name = "azure-storage-blob", marker = "extra == 'dev'" },
     { name = "black", marker = "extra == 'dev'" },
-    { name = "isar", git = "https://github.com/equinor/isar.git?rev=8d363e1544db1373aad6378bf49ce919e550f1f0" },
+    { name = "isar", git = "https://github.com/equinor/isar.git?rev=1aa36d097674f362a84a405d959d1af02f9655c2" },
     { name = "isort", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "numpy" },
