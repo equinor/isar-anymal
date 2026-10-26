@@ -100,6 +100,7 @@ def _robot_without_init(last_mission_event: object) -> Robot:
     robot.current_anymal_mission_id = "anymal-mission-id"
     robot.current_isar_mission_id = "isar-mission-id"
     robot.return_to_home_mission_running = False
+    robot.stored_mission_running = False
     return robot
 
 

@@ -8,6 +8,41 @@ Running the full ISAR system requires an installation of a robot which satisfies
 [interface](https://github.com/equinor/isar/blob/main/src/robot_interface/robot_interface.py). isar-anymal is an
 implementation for the ANYmal robot.
 
+## Stored diagnostic missions
+
+ISAR's `stored_mission` capability starts an existing robot-owned mission through
+`Robot.initiate_stored_mission`. The request contains `tasks: []` and an explicit
+`robot_mission_id`; the display name never selects a robot mission. For example:
+
+```json
+{
+  "id": "diagnostic-execution-id",
+  "name": "Diagnostic mission",
+  "tasks": [],
+  "robot_mission_id": "DiagnosticRoutine"
+}
+```
+
+`DiagnosticRoutine` is an assumed **mission UID**, not a verified display name.
+Configure Flotilla with the actual UID already installed on the target robot.
+This integration forwards it as ANYmal's `missionDescription.missionUid`, using
+the existing control lease, autonomous mode and protective-stop policy. It does
+not create or transfer ADS mission files or enqueue inspection results. Status,
+pause, resume and stop use the returned run UID. Completion follows robot task
+summaries, or the explicit mission outcome when a stored run completes without
+task summaries; an unavailable outcome is an error, not assumed success.
+
+**Cross-repository dependency:** registry ISAR 2.7.0 does not support this contract.
+This coordinated change pins [equinor/isar#1234](https://github.com/equinor/isar/pull/1234) to an immutable
+Git commit in both the package dependency and `uv.lock`, so standalone installs
+and production builds use the same contract without a sibling checkout. After
+the ISAR changes are merged and released, replace the Git dependency with that
+published registry minimum and regenerate `uv.lock`. Flotilla's stored-mission
+scheduling changes and any deployment capability overrides must include
+`stored_mission`.
+Verify the installed UID and diagnostic progress/outcome events on the robot
+before enabling scheduling; no live robot execution is part of these tests.
+
 ## Video inspections
 
 `take_video` and `take_thermal_video` record normal-camera and thermal-camera video,
@@ -33,12 +68,13 @@ duration and the task's tag, description, and analysis types.
 uv sync --extra dev
 ```
 
-This installs the registry version of ISAR from `uv.lock`; a sibling checkout is not required.
+This installs the pinned ISAR dependency from `uv.lock`; a sibling checkout is not
+required. Git must be available while the companion ISAR commit is pinned.
 
 ### Developing against a local ISAR checkout (optional)
 
 To work on ISAR and this integration together, clone the [isar](https://github.com/equinor/isar)
-repository as a sibling directory (`../isar/`). After syncing, replace the registry package with
+repository as a sibling directory (`../isar/`). After syncing, replace the pinned package with
 an editable installation:
 
 ```
@@ -48,8 +84,8 @@ uv run --no-sync pytest
 ```
 
 Use `uv run --no-sync` for all commands while using the local checkout (including the lint commands
-below). A normal `uv run` or `uv sync` can replace the editable installation with the locked registry
-version; repeat the editable install after syncing. `--frozen` alone does not prevent syncing.
+below). A normal `uv run` or `uv sync` can replace the editable installation with the locked
+dependency; repeat the editable install after syncing. `--frozen` alone does not prevent syncing.
 
 The `--no-deps` option keeps the integration's locked dependencies installed. Use an ISAR checkout
 compatible with those dependencies; if its requirements change, reconcile them before continuing.
@@ -58,7 +94,7 @@ Python source edits in the sibling checkout are picked up without reinstalling, 
 dependency changes may require reinstalling and adjusting the environment. These local installs do not change
 `pyproject.toml` or `uv.lock`.
 
-To return to the locked registry version:
+To return to the locked dependency:
 
 ```
 uv sync --locked --extra dev
@@ -101,6 +137,7 @@ To update all dependencies to the latest versions:
 uv lock --upgrade
 ```
 
-The committed configuration and lockfile use registry packages, so `--no-sources` is not needed.
+The committed configuration uses registry packages plus the immutable companion ISAR
+Git dependency; `--no-sources` is not needed.
 Keep local editable installations in the development environment rather than committing a sibling
 path in `tool.uv.sources`: Dependabot and standalone checkouts cannot retrieve that external directory.
