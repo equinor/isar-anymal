@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "alitra",
-    "isar>=2.7.0",
+    "isar @ git+https://github.com/equinor/isar.git@8d363e1544db1373aad6378bf49ce919e550f1f0",
     "numpy",
     "opentelemetry-exporter-otlp>=1.38.0",
     "protobuf",

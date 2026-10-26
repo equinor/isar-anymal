@@ -41,6 +41,7 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id: str | None = None
         self.current_isar_mission_id: str | None = None
         self.return_to_home_mission_running: bool = False
+        self.stored_mission_running: bool = False
 
         logging.getLogger("httpcore").setLevel(logging.WARNING)
 
@@ -76,6 +77,7 @@ class Robot(RobotInterface):
         self.anymal.mission_status_handler.last_mission_event = None
 
         self.return_to_home_mission_running = False
+        self.stored_mission_running = False
         mission_id: str | None
         anymal_mission_tasks: list | None
         mission_id, anymal_mission_tasks = self.anymal.prepare_mission_plan(
@@ -112,10 +114,42 @@ class Robot(RobotInterface):
                 (task, anymal_point_of_interest_name[0])
             )
 
+    def initiate_stored_mission(self, mission: Mission) -> None:
+        """Execute a robot-owned mission without creating or collecting inspections."""
+        if (
+            not mission.robot_mission_id
+            or not mission.robot_mission_id.strip()
+            or mission.tasks
+        ):
+            error_message = "Stored missions require a robot mission ID and no tasks."
+            logger.error(error_message)
+            raise RobotInfeasibleMissionException(error_message)
+
+        logger.info(
+            "Received request to initiate stored mission %s with ID %s",
+            mission.robot_mission_id,
+            mission.id,
+        )
+        self.current_anymal_mission_id = None
+        self.current_isar_mission_id = None
+        self.anymal.mission_status_handler.last_mission_event = None
+        self.return_to_home_mission_running = False
+        self.stored_mission_running = False
+
+        if settings.AUTO_DISABLE_PROTECTIVE_STOP:
+            self.anymal.disengage_protective_stop()
+
+        self.current_anymal_mission_id = self.anymal.start_mission(
+            mission_id=mission.robot_mission_id
+        )
+        self.current_isar_mission_id = mission.id
+        self.stored_mission_running = True
+
     def initiate_return_home(self, mission_id: str) -> None:
         logger.info(f"Received request to return home with ID {mission_id}")
 
         self.anymal.mission_status_handler.last_mission_event = None
+        self.stored_mission_running = False
         self.current_anymal_mission_id = self.anymal.start_dock_mission()
         self.current_isar_mission_id = mission_id
         self.return_to_home_mission_running = True
@@ -171,6 +205,8 @@ class Robot(RobotInterface):
         if self._current_mission_event() is None:
             return MissionStatus.NotStarted
 
+        if self.stored_mission_running:
+            return self.anymal.get_mission_status(stored_mission=True)
         return self.anymal.get_mission_status()
 
     def _current_mission_event(self) -> MissionEventDto | None:

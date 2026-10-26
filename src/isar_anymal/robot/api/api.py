@@ -299,8 +299,10 @@ class API:
     def get_task_status(self, task_id: str) -> TaskStatus:
         return self.mission_status_handler.get_task_status(task_id=task_id)
 
-    def get_mission_status(self) -> MissionStatus:
-        return self.mission_status_handler.get_mission_status()
+    def get_mission_status(self, *, stored_mission: bool = False) -> MissionStatus:
+        return self.mission_status_handler.get_mission_status(
+            stored_mission=stored_mission
+        )
 
     def generate_media_config(self) -> MediaConfig:
         self.media_stream.activate_stream()

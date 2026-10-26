@@ -56,7 +56,7 @@ class MissionStatusHandler:
 
         return self._anymal_task_summary_to_task_status(task_status, task_outcome)
 
-    def get_mission_status(self) -> MissionStatus:
+    def get_mission_status(self, *, stored_mission: bool = False) -> MissionStatus:
         try:
             anymal_mission_status: ANYmalMissionStatus = (
                 self._get_anymal_mission_status()
@@ -81,6 +81,24 @@ class MissionStatusHandler:
             raise RobotMissionStatusException(
                 "Received an unsupported task status, and could therefore not calculate mission status"
             )
+
+        if stored_mission and not task_summaries:
+            summary = self.last_mission_event.mission_summary
+            if anymal_mission_status == ANYmalMissionStatus.MS_COMPLETED:
+                if summary.outcome in (
+                    Outcome.OC_SUCCESS,
+                    Outcome.OC_NORMAL,
+                    Outcome.OC_ANOMALY,
+                ):
+                    return MissionStatus.Successful
+                if summary.outcome == Outcome.OC_FAILURE:
+                    return MissionStatus.Failed
+            error_message = (
+                "Cannot determine stored mission status without task summaries: "
+                f"status={anymal_mission_status}, outcome={summary.outcome}"
+            )
+            logger.error(error_message)
+            raise RobotMissionStatusException(error_message)
 
         if all(status == TaskStatus.NotStarted for status in task_statuses):
             return MissionStatus.NotStarted
