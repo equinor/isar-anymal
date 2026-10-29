@@ -51,7 +51,7 @@ dev = [
 # This section is empty but required for dynamic versioning.
 
 [tool.setuptools.package-data]
-"*" = ["*.json"]
+"*" = ["*.json", "config/settings.env"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
