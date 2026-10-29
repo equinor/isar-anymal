@@ -64,6 +64,17 @@ To return to the locked registry version:
 uv sync --locked --extra dev
 ```
 
+### Container builds
+
+Production uses ISAR from `uv.lock`. To use a local checkout (including worktrees):
+
+```bash
+docker build -f Dockerfile.Local --build-context isar_source=../isar -t isar-anymal:local .
+```
+
+Local builds resolve source dependencies without changing `uv.lock`, include media
+forwarding support, and run as UID 1001 with writable `/data`. Rebuild after source edits.
+
 ### Running tests
 
 ```
