@@ -23,6 +23,8 @@ from robot_interface.models.inspection.inspection import (
     Inspection,
     InspectionMetadata,
     InspectionValue,
+    ThermalImage,
+    ThermalImageMetadata,
     ThermalVideo,
     ThermalVideoMetadata,
     Video,
@@ -279,16 +281,16 @@ def _process_inspection_blob(
     inspection_type: type[Inspection]
     video_duration: float | None = None
 
-    # if event.measurement.type == InspectionMeasurementType.IMT_THERMAL:
-    #     metadata_type = ThermalImageMetadata
-    #     inspection_type = ThermalImage
+    if event.measurement.type == InspectionMeasurementType.IMT_THERMAL:
+        metadata_type = ThermalImageMetadata
+        inspection_type = ThermalImage
 
-    #     thermal_object: AnymalImage = event.measurement.thermal
-    #     file_bytes = thermal_object.thermal_image.image.data
-    #     file_type = thermal_object.thermal_image.image.encoding
-    #     # We can also gather the 'gain' and 'offset' from the thermal_image metadata
+        file_bytes, file_type = _fetch_blob_via_data_navigator(
+            task_run_uid=event.task_run_uid, request_handler=request_handler
+        )
+        # We can also gather the 'gain' and 'offset' from the thermal_image metadata
 
-    if event.measurement.type == InspectionMeasurementType.IMT_VISUAL:
+    elif event.measurement.type == InspectionMeasurementType.IMT_VISUAL:
         metadata_type = ImageMetadata
         inspection_type = Image
         file_bytes, file_type = _fetch_blob_via_data_navigator(
