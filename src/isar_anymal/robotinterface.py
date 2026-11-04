@@ -46,6 +46,7 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id: str | None = None
         self.current_isar_mission_id: str | None = None
         self.return_to_home_mission_running: bool = False
+        self.stored_mission_running: bool = False
 
         logging.getLogger("httpcore").setLevel(logging.WARNING)
 
@@ -66,10 +67,9 @@ class Robot(RobotInterface):
         """Start a new ISAR mission on the ANYmal robot.
 
         This method is the entry-point used by ISAR to kick off robot execution.
-        It resets the internal "currently running mission" bookkeeping, decides
-        whether the request is a special *return-to-home/docking* mission, and
-        otherwise converts the ISAR mission into an ANYmal mission plan and
-        starts it on the robot.
+        It resets the internal "currently running mission" bookkeeping and
+        executes an explicit stored mission directly, or converts inspection
+        tasks into an ANYmal mission plan before starting it on the robot.
 
         Args:
             mission: The ISAR mission to execute.
@@ -92,15 +92,17 @@ class Robot(RobotInterface):
         self.anymal.mission_status_handler.last_mission_event = None
 
         self.return_to_home_mission_running = False
-        mission_id: str | None
-        anymal_mission_tasks: list | None
-        mission_id, anymal_mission_tasks = self.anymal.prepare_mission_plan(
-            mission=mission
-        )
-        if mission_id is None or anymal_mission_tasks is None:
-            error_message: str = "Failed to prepare mission plan."
-            logger.error(error_message)
-            raise RobotInfeasibleMissionException(error_message)
+        self.stored_mission_running = False
+        mission_id: str | None = mission.robot_mission_id
+        anymal_mission_tasks: list | None = None
+        if mission_id is None:
+            mission_id, anymal_mission_tasks = self.anymal.prepare_mission_plan(
+                mission=mission
+            )
+            if mission_id is None or anymal_mission_tasks is None:
+                error_message = "Failed to prepare mission plan."
+                logger.error(error_message)
+                raise RobotInfeasibleMissionException(error_message)
 
         if settings.AUTO_DISABLE_PROTECTIVE_STOP:
             self.anymal.disengage_protective_stop()
@@ -109,6 +111,10 @@ class Robot(RobotInterface):
             mission_id=mission_id
         )
         self.current_isar_mission_id = mission.id
+
+        if mission.robot_mission_id is not None:
+            self.stored_mission_running = True
+            return
 
         self.inspection_handler.missions_inspection_queue.append(
             (self.current_anymal_mission_id, mission)
@@ -132,6 +138,7 @@ class Robot(RobotInterface):
         logger.info(f"Received request to return home with ID {mission_id}")
 
         self.anymal.mission_status_handler.last_mission_event = None
+        self.stored_mission_running = False
         self.current_anymal_mission_id = self.anymal.start_dock_mission()
         self.current_isar_mission_id = mission_id
         self.return_to_home_mission_running = True
@@ -187,6 +194,11 @@ class Robot(RobotInterface):
         if self._current_mission_event() is None:
             return MissionStatus.NotStarted
 
+        if self.stored_mission_running:
+            status = self.anymal.get_mission_status(stored_mission=True)
+            if status == MissionStatus.PartiallySuccessful:
+                return MissionStatus.Failed
+            return status
         return self.anymal.get_mission_status()
 
     def _current_mission_event(self) -> MissionEventDto | None:
