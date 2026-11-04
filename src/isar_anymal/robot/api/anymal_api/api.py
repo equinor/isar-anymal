@@ -23,6 +23,7 @@ from isar_anymal.robot.api.anymal_api.models import (
     LeaseControlResponseDto,
     ProtectiveStopResponseDto,
     ReleaseControlResponseDto,
+    SetUserInteractionModeResponseDto,
 )
 from isar_anymal.robot.api.request_handler import RequestHandler
 
@@ -159,13 +160,18 @@ class ANYmalAPI:
             ) from e
 
         interaction_mode_response = _parse_response_into_model(
-            response=response, model_type=GetUserInteractionModeResponseDto
+            response=response, model_type=SetUserInteractionModeResponseDto
         )
 
-        if interaction_mode_response.status != ServiceCallStatus.SCS_OK:
-            error_description: str = (
+        header = interaction_mode_response.header
+        if header is None:
+            error_description = "Missing header in set user interaction mode response"
+            logger.error(error_description)
+            raise RobotAPIException(error_description)
+        if header.status != ANYmalServiceCallStatus.ASCS_OK:
+            error_description = (
                 f"ANYmal API service call to set user interaction mode failed with status: "
-                f"{interaction_mode_response.status} and message: {interaction_mode_response.message}"
+                f"{header.status} and message: {header.message}"
             )
             logger.error(error_description)
             raise RobotAPIException(error_description)
