@@ -14,9 +14,10 @@ COPY src/isar_anymal ./src/isar_anymal
 COPY --from=isar_source pyproject.toml README.md LICENSE /src/isar/
 COPY --from=isar_source src /src/isar/src
 RUN uv venv /app/.venv
-RUN SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ISAR=2.7.2+local \
+RUN printf 'isar @ file:///src/isar\n' > /app/isar-override.txt && \
+    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ISAR=0.0.0+local \
     SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ISAR_ANYMAL=0.0.0+local \
-    uv pip install --python /app/.venv/bin/python /src/isar .
+    uv pip install --python /app/.venv/bin/python --override /app/isar-override.txt /src/isar .
 
 FROM python:3.14-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4
 RUN apt-get update && apt-get install -y --no-install-recommends \
