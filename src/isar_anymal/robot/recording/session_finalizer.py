@@ -39,6 +39,10 @@ class SessionFinalizer:
         self, session: DriverRecordingSession, directory: Path
     ) -> None:
         """Attempt each camera once, persist terminal results, and remove local media."""
+        completion_marker = directory / "finalized"
+        if completion_marker.exists():
+            return
+
         previous_status = session.status
         for camera in session.cameras.values():
             await self._finalize_camera_recording(session, camera, directory)
@@ -51,6 +55,7 @@ class SessionFinalizer:
         self.persist(session)
         self._remove_local_footage(directory)
         await self.publish(session)
+        completion_marker.touch()
         if session.status != previous_status:
             logger.info(
                 "Recording session published mission_id=%s status=%s ready_cameras=%s total_cameras=%s",

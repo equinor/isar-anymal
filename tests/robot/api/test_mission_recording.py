@@ -141,7 +141,7 @@ def test_success_removes_footage_before_publication(finalization):
     finalizer.publish.side_effect = publish
     asyncio.run(finalizer.finalize_session(session, directory))
 
-    assert list(directory.iterdir()) == [directory / "session.json"]
+    assert {path.name for path in directory.iterdir()} == {"session.json", "finalized"}
     assert session.cameras["front"].artifact_reference == "opaque-reference"
     finalizer.publisher.publish_video.assert_awaited_once()
 
@@ -162,12 +162,36 @@ def test_failed_upload_expires_only_failed_camera_and_removes_all_footage(finali
     assert session.cameras["front"].status == "Expired"
     assert "upload" in session.cameras["front"].error
     assert session.cameras["arm"].status == "Ready"
-    assert list(directory.iterdir()) == [directory / "session.json"]
+    assert {path.name for path in directory.iterdir()} == {"session.json", "finalized"}
 
     asyncio.run(finalizer.finalize_session(session, directory))
     assert session.status == "Expired"
     assert finalizer.publisher.publish_video.await_count == 2
-    assert list(directory.iterdir()) == [directory / "session.json"]
+    assert {path.name for path in directory.iterdir()} == {"session.json", "finalized"}
+
+
+@pytest.mark.parametrize("upload_fails", [False, True])
+def test_completed_session_is_not_republished_after_restart(finalization, upload_fails):
+    finalizer, session, directory = finalization
+
+    def persist(document):
+        (directory / "session.json").write_text(document.model_dump_json())
+
+    finalizer.persist = persist
+    if upload_fails:
+        finalizer.publisher.publish_video.side_effect = OSError()
+
+    asyncio.run(finalizer.finalize_session(session, directory))
+    asyncio.run(finalizer.finalize_session(session, directory))
+
+    recovered = DriverRecordingSession.model_validate_json(
+        (directory / "session.json").read_text()
+    )
+    restarted = SessionFinalizer(finalizer.publisher, persist, finalizer.publish)
+    asyncio.run(restarted.finalize_session(recovered, directory))
+
+    finalizer.publish.assert_awaited_once()
+    finalizer.publisher.publish_video.assert_awaited_once()
 
 
 @pytest.mark.parametrize("failure_stage", ["publication", "cleanup"])
@@ -206,7 +230,7 @@ def test_maintenance_retries_publication_and_cleanup_after_restart(
     asyncio.run(recorder._maintain_session(recovered))
     finalizer.publisher.publish_video.assert_awaited_once()
     assert finalizer.publish.await_count == (2 if failure_stage == "publication" else 1)
-    assert list(directory.iterdir()) == [directory / "session.json"]
+    assert {path.name for path in directory.iterdir()} == {"session.json", "finalized"}
 
 
 @pytest.mark.parametrize("active", [False, True])
