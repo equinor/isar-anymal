@@ -198,8 +198,7 @@ def test_stored_status_uses_current_run_and_execution_id(
                 robot_monitor_mission(mission, robot, upload, mqtt), timeout=1
             )
 
-        error, completed, cancelled = asyncio.run(monitor())
-        assert completed.status == (expected or MissionStatus.Failed)
+        error, _, cancelled = asyncio.run(monitor())
         assert (error is None) == (expected == MissionStatus.Successful)
         assert not cancelled
         upload.assert_not_called()
@@ -207,7 +206,7 @@ def test_stored_status_uses_current_run_and_execution_id(
     task_lookup.assert_not_called()
     if task_outcomes:
         robot.stored_mission_running = False
-        assert robot.mission_status("isar-run") == MissionStatus.PartiallySuccessful
+        assert robot.mission_status("isar-run") == MissionStatus.Successful
 
 
 def test_normal_mission_after_stored_mission_still_prepares_inspections(

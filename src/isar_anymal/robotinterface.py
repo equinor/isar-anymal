@@ -195,10 +195,7 @@ class Robot(RobotInterface):
             return MissionStatus.NotStarted
 
         if self.stored_mission_running:
-            status = self.anymal.get_mission_status(stored_mission=True)
-            if status == MissionStatus.PartiallySuccessful:
-                return MissionStatus.Failed
-            return status
+            return self.anymal.get_mission_status(stored_mission=True)
         return self.anymal.get_mission_status()
 
     def _current_mission_event(self) -> MissionEventDto | None:

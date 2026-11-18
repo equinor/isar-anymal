@@ -341,7 +341,7 @@ def test_robot_status_polling_recovers_after_request_failure(
                     resultInterpretation=ResultInterpretation.RI_NA,
                 ),
             ],
-            MissionStatus.PartiallySuccessful,
+            MissionStatus.Successful,
         ),
         (
             ANYmalMissionStatus.MS_COMPLETED,

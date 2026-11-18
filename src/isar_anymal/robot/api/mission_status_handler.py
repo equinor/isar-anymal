@@ -114,7 +114,8 @@ class MissionStatusHandler:
         if any(status == TaskStatus.Cancelled for status in task_statuses):
             return MissionStatus.Cancelled
         if any(status == TaskStatus.Failed for status in task_statuses):
-            return MissionStatus.PartiallySuccessful
+            # Stored missions have no ISAR tasks to show which part failed.
+            return MissionStatus.Failed if stored_mission else MissionStatus.Successful
         raise RobotMissionStatusException("Unhandled mission status detected")
 
     def _get_anymal_task_summaries(self) -> list[TaskSummaryDto]:
