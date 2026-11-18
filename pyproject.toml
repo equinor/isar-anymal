@@ -22,7 +22,7 @@ dependencies = [
     "alitra",
     "livekit>=1,<2",
     "av>=16,<20",
-    "isar>=2.8.0",
+    "isar>=2.8.2",
     "numpy",
     "opentelemetry-exporter-otlp>=1.38.0",
     "protobuf",
