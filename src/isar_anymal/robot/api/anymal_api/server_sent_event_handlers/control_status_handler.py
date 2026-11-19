@@ -42,6 +42,8 @@ class ControlStatusHandler:
         )
         self.control_status.protective_stop_engaged = (
             event.protective_stop_status.is_engaged
+            if event.protective_stop_status is not None
+            else self.control_status.protective_stop_engaged
         )
         self.control_status.is_power_cut = event.is_power_cut
         self.control_status.user_interaction_mode = (
