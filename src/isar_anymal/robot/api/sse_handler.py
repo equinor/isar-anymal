@@ -6,9 +6,9 @@ from threading import Thread
 from typing import TypeVar
 
 from pydantic import ValidationError
-from requests import ConnectionError, JSONDecodeError, Response, Timeout
+from requests import ConnectionError, JSONDecodeError, ReadTimeout, Response, Timeout
 from requests.exceptions import ChunkedEncodingError
-from urllib3.exceptions import ProtocolError
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
 from isar_anymal.robot.api.anymal_api.models import EventBaseModel
 from isar_anymal.robot.api.request_handler import RequestHandler
@@ -17,11 +17,77 @@ logger = logging.getLogger(__name__)
 
 TEventModel = TypeVar("TEventModel", bound=EventBaseModel)
 
-# Delays between attempts to re-establish a dropped SSE stream. The delay
-# doubles on every consecutive failure and resets once a stream is
-# established, so a server that is down does not cause a hot reconnect loop.
+# Reconnect backoff: how long to wait before reconnecting a dropped SSE stream.
+# The wait doubles after every consecutive failure (0.1s, 0.2s, 0.4s, ... up to
+# 30s) so an unreachable server is not hammered with reconnect attempts. It goes
+# back to the initial delay once a stream has proven healthy, i.e. it delivered
+# data or stayed open for the full read timeout.
 SSE_RECONNECT_INITIAL_DELAY: float = 0.1
 SSE_RECONNECT_MAX_DELAY: float = 30
+
+# The read timeout drops connections that silently died, e.g. after a network
+# restart. The ANYmal event streams can be quiet for much longer than this
+# without being broken, so a read timeout on an open stream is logged at debug
+# and reconnected immediately instead of being reported as a failure.
+SSE_CONNECT_TIMEOUT: float = 10
+SSE_READ_TIMEOUT: float = 30
+
+# Minimum time between warnings for consecutive failures of the same stream.
+SSE_FAILURE_WARNING_INTERVAL: float = 60
+
+
+class _SSEConnectionHealth:
+    """Summarizes consecutive failures of one SSE stream and logs its recovery."""
+
+    def __init__(self, url: str) -> None:
+        self.url: str = url
+        self.consecutive_failures: int = 0
+        self.first_failure_at: float = 0
+        self.last_warning_at: float | None = None
+
+    def record_failure(
+        self, reason: str, reconnect_delay: float, unexpected: bool = False
+    ) -> None:
+        now: float = time.monotonic()
+        if self.consecutive_failures == 0:
+            self.first_failure_at = now
+        self.consecutive_failures += 1
+
+        should_warn: bool = (
+            self.last_warning_at is None
+            or now - self.last_warning_at >= SSE_FAILURE_WARNING_INTERVAL
+        )
+        if should_warn:
+            self.last_warning_at = now
+            level: int = logging.ERROR if unexpected else logging.WARNING
+        else:
+            level = logging.DEBUG
+        logger.log(
+            level,
+            f"SSE connection to {self.url} failed ({reason}); "
+            f"{self.consecutive_failures} consecutive failure(s) over "
+            f"{now - self.first_failure_at:.0f}s, reconnecting in {reconnect_delay:g}s",
+            exc_info=unexpected and should_warn,
+        )
+
+    def record_healthy(self) -> None:
+        if self.consecutive_failures > 0:
+            logger.info(
+                f"SSE connection to {self.url} recovered after "
+                f"{self.consecutive_failures} consecutive failure(s) over "
+                f"{time.monotonic() - self.first_failure_at:.0f}s"
+            )
+        self.consecutive_failures = 0
+        self.last_warning_at = None
+
+
+def _is_read_timeout(error: Exception) -> bool:
+    # requests wraps read timeouts raised while streaming in a ConnectionError.
+    if isinstance(error, ReadTimeout):
+        return True
+    return isinstance(error, ConnectionError) and any(
+        isinstance(arg, ReadTimeoutError) for arg in error.args
+    )
 
 
 class SSEHandler:
@@ -56,38 +122,41 @@ class SSEHandler:
         model_type: TEventModel,
     ) -> None:
         reconnect_delay: float = SSE_RECONNECT_INITIAL_DELAY
+        health: _SSEConnectionHealth = _SSEConnectionHealth(url)
+        has_connected: bool = False
         while True:
             try:
                 response: Response = self.request_handler.get(
                     url=url,
-                    # Bound silent half-open connections after a network restart.
-                    # The vendor/mock SSE endpoints send regular events/heartbeats.
-                    request_timeout=(10, 30),
+                    request_timeout=(SSE_CONNECT_TIMEOUT, SSE_READ_TIMEOUT),
                     stream=True,
                 )
                 response.raise_for_status()
             except (ConnectionError, Timeout) as e:
-                logger.warning(
-                    "SSE connection to %s failed (%s: %s); reconnecting in %gs",
-                    url,
-                    type(e).__name__,
-                    e,
-                    reconnect_delay,
-                )
+                health.record_failure(f"{type(e).__name__}: {e}", reconnect_delay)
                 reconnect_delay = self._sleep_before_reconnecting(reconnect_delay)
                 continue
-            except Exception:
-                logger.exception(
-                    f"An unexpected error occurred while subscribing to SSE endpoint {url}"
+            except Exception as e:
+                health.record_failure(
+                    f"{type(e).__name__}: {e}", reconnect_delay, unexpected=True
                 )
                 reconnect_delay = self._sleep_before_reconnecting(reconnect_delay)
                 continue
 
-            logger.info(f"Connected to SSE endpoint {url}")
-            reconnect_delay = SSE_RECONNECT_INITIAL_DELAY
+            if has_connected:
+                logger.debug(f"Reconnected to SSE endpoint {url}")
+            else:
+                logger.info(f"Connected to SSE endpoint {url}")
+                has_connected = True
 
+            received_data: bool = False
             try:
                 for line in response.iter_lines():
+                    if not received_data:
+                        received_data = True
+                        health.record_healthy()
+                        reconnect_delay = SSE_RECONNECT_INITIAL_DELAY
+
                     event: TEventModel | None = (
                         self._attempt_to_decode_sse_message_to_model(
                             line=line,
@@ -98,23 +167,38 @@ class SSEHandler:
                         continue
 
                     on_event(event)
-                logger.info(f"SSE stream {url} ended, will re-establish connection")
+                if received_data:
+                    logger.info(f"SSE stream {url} ended, will re-establish connection")
+                else:
+                    health.record_failure(
+                        "stream ended without delivering data", reconnect_delay
+                    )
             except ChunkedEncodingError, ProtocolError:
-                logger.info(
-                    f"SSE stream {url} was interrupted, will re-establish connection"
-                )
+                if received_data:
+                    logger.info(
+                        f"SSE stream {url} was interrupted, will re-establish connection"
+                    )
+                else:
+                    health.record_failure(
+                        "stream interrupted without delivering data", reconnect_delay
+                    )
             except (ConnectionError, Timeout) as e:
-                logger.warning(
-                    "SSE connection to %s failed (%s: %s); reconnecting in %gs",
-                    url,
-                    type(e).__name__,
-                    e,
+                if _is_read_timeout(e):
+                    # The connection stayed open for the whole read timeout, so
+                    # this is a quiet stream rather than a failing one.
+                    health.record_healthy()
+                    reconnect_delay = SSE_RECONNECT_INITIAL_DELAY
+                    logger.debug(
+                        f"SSE stream {url} was idle for {SSE_READ_TIMEOUT:g}s, reconnecting"
+                    )
+                else:
+                    health.record_failure(f"{type(e).__name__}: {e}", reconnect_delay)
+            except Exception as e:
+                health.record_failure(
+                    f"error while listening to {model_type.__name__} events: "
+                    f"{type(e).__name__}: {e}",
                     reconnect_delay,
-                )
-            except Exception:
-                logger.exception(
-                    f"An unexpected error occurred while listening to SSE event {model_type.__name__}, will attempt "
-                    f"to re-establish connection"
+                    unexpected=True,
                 )
             finally:
                 response.close()
