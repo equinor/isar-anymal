@@ -68,6 +68,7 @@ def test_frame_monitor_allows_startup_then_detects_missing_and_stalled_frames():
 def recorder(tmp_path):
     recorder = AnymalMissionRecorder.__new__(AnymalMissionRecorder)
     recorder.directory = tmp_path
+    recorder.sessions = {}
     recorder.workers = {}
     recorder.publisher = Mock()
     recorder._finalize = AsyncMock()
@@ -77,7 +78,6 @@ def recorder(tmp_path):
 
 def test_start_persists_mission_name(recorder):
     recorder.closing = False
-    recorder.sessions = {}
     recorder.capture = AsyncMock(side_effect=lambda stop, *_: stop.set())
 
     async def start():
@@ -88,7 +88,7 @@ def test_start_persists_mission_name(recorder):
 
     session = recorder.sessions["mission"]
     recovered = DriverRecordingSession.model_validate_json(
-        (recorder._session_directory(session) / "session.json").read_text()
+        (recorder._session_directory(session.run_id) / "session.json").read_text()
     )
     assert recovered.mission_name == "Perimeter"
 
@@ -107,7 +107,7 @@ def test_capture_persists_recoverable_catalog(recorder):
     asyncio.run(recorder._capture_session(session, asyncio.Event()))
 
     recovered = DriverRecordingSession.model_validate_json(
-        (recorder._session_directory(session) / "session.json").read_text()
+        (recorder._session_directory(session.run_id) / "session.json").read_text()
     )
     assert recovered == session
     assert recovered.status == "Processing"
@@ -189,27 +189,34 @@ def test_failed_upload_expires_only_failed_camera_and_removes_all_footage(finali
 
 
 @pytest.mark.parametrize("upload_fails", [False, True])
-def test_completed_session_is_not_republished_after_restart(finalization, upload_fails):
-    finalizer, session, directory = finalization
-
-    def persist(document):
-        (directory / "session.json").write_text(document.model_dump_json())
-
-    finalizer.persist = persist
+def test_finalized_recording_is_not_started_again_after_restart(
+    finalization, recorder, upload_fails
+):
+    finalizer, session, _ = finalization
+    recorder.publisher = finalizer.publisher
+    recorder.sessions[session.run_id] = session
+    recorder._persist(session)
+    directory = recorder._session_directory(session.run_id)
+    (directory / "front-00001.mkv").write_bytes(b"footage")
     if upload_fails:
-        finalizer.publisher.publish_video.side_effect = OSError()
+        recorder.publisher.publish_video.side_effect = OSError()
 
-    asyncio.run(finalizer.finalize_session(session, directory))
-    asyncio.run(finalizer.finalize_session(session, directory))
+    asyncio.run(AnymalMissionRecorder._finalize(recorder, session))
 
-    recovered = DriverRecordingSession.model_validate_json(
-        (directory / "session.json").read_text()
+    assert session.status == ("Expired" if upload_fails else "Ready")
+    assert {path.name for path in directory.iterdir()} == {"finalized"}
+    assert recorder.sessions == {}
+    recorder._publish.assert_awaited_once_with(session)
+
+    restarted_recorder = AnymalMissionRecorder(
+        AsyncMock(), recorder.publisher, directory=recorder.directory
     )
-    restarted = SessionFinalizer(finalizer.publisher, persist, finalizer.publish)
-    asyncio.run(restarted.finalize_session(recovered, directory))
-
-    finalizer.publish.assert_awaited_once()
-    finalizer.publisher.publish_video.assert_awaited_once()
+    try:
+        restarted_recorder.start(session.run_id, "Duplicate")
+    finally:
+        restarted_recorder.close()
+    restarted_recorder.capture.assert_not_awaited()
+    assert {path.name for path in directory.iterdir()} == {"finalized"}
 
 
 @pytest.mark.parametrize("failure_stage", ["publication", "cleanup"])
@@ -217,19 +224,18 @@ def test_completed_session_is_not_republished_after_restart(finalization, upload
 def test_maintenance_retries_publication_and_cleanup_after_restart(
     finalization, recorder, mocker, failure_stage, upload_fails
 ):
-    finalizer, session, directory = finalization
-    directory = recorder._session_directory(session)
+    finalizer, session, _ = finalization
+    directory = recorder._session_directory(session.run_id)
     directory.mkdir()
     (directory / "front-00001.mkv").write_bytes(b"footage")
     session.ended_at = datetime.now(UTC).isoformat()
-    finalizer.persist = recorder._persist
+    recorder.publisher = finalizer.publisher
+    recorder._publish = finalizer.publish
+    recorder._finalize = AnymalMissionRecorder._finalize.__get__(recorder)
     if upload_fails:
         finalizer.publisher.publish_video.side_effect = OSError()
-    recorder._finalize = lambda document: finalizer.finalize_session(
-        document, directory
-    )
     cleanup = mocker.patch.object(
-        finalizer, "_remove_local_footage", wraps=finalizer._remove_local_footage
+        SessionFinalizer, "_remove_local_footage", wraps=finalizer._remove_local_footage
     )
     if failure_stage == "publication":
         finalizer.publish.side_effect = OSError()
@@ -238,6 +244,7 @@ def test_maintenance_retries_publication_and_cleanup_after_restart(
     with pytest.raises(OSError):
         asyncio.run(recorder._maintain_session(session))
     assert (directory / "front-00001.mkv").exists() == (failure_stage == "cleanup")
+    assert not (directory / "finalized").exists()
 
     recovered = DriverRecordingSession.model_validate_json(
         (directory / "session.json").read_text()
@@ -248,7 +255,7 @@ def test_maintenance_retries_publication_and_cleanup_after_restart(
     asyncio.run(recorder._maintain_session(recovered))
     finalizer.publisher.publish_video.assert_awaited_once()
     assert finalizer.publish.await_count == (2 if failure_stage == "publication" else 1)
-    assert {path.name for path in directory.iterdir()} == {"session.json", "finalized"}
+    assert {path.name for path in directory.iterdir()} == {"finalized"}
 
 
 @pytest.mark.parametrize("active", [False, True])
@@ -260,7 +267,7 @@ def test_maintenance_only_finalizes_inactive_sessions(recorder, active):
         ended_at=(datetime.now(UTC) - timedelta(days=8)).isoformat(),
     )
     recorder._persist(session)
-    directory = recorder._session_directory(session)
+    directory = recorder._session_directory(session.run_id)
     footage = directory / "segment.mkv"
     footage.write_bytes(b"footage")
     if active:
