@@ -53,8 +53,8 @@ class AnymalMissionRecorder(MissionRecorder):
         if not self.ready.wait(5):
             raise RuntimeError("Recording loop did not start")
 
-    def start(self, mission_id: str) -> None:
-        self.loop.call_soon_threadsafe(self._start_session, mission_id)
+    def start(self, mission_id: str, mission_name: str) -> None:
+        self.loop.call_soon_threadsafe(self._start_session, mission_id, mission_name)
 
     def stop(self, mission_id: str, interrupted: bool = False) -> None:
         self.loop.call_soon_threadsafe(self._stop_session, mission_id, interrupted)
@@ -117,7 +117,7 @@ class AnymalMissionRecorder(MissionRecorder):
     async def _publish(self, session: DriverRecordingSession) -> None:
         await self.publisher.publish_session(session)
 
-    def _start_session(self, mission_id: str) -> None:
+    def _start_session(self, mission_id: str, mission_name: str) -> None:
         if self.closing or mission_id in self.workers:
             return
         existing = self.sessions.get(mission_id)
@@ -125,6 +125,7 @@ class AnymalMissionRecorder(MissionRecorder):
             return
         session = existing or DriverRecordingSession(
             run_id=mission_id,
+            mission_name=mission_name,
             status="Starting",
             started_at=timestamp(),
             mission_started_at=timestamp(),

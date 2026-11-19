@@ -644,7 +644,7 @@ wheels = [
 
 [[package]]
 name = "isar"
-version = "2.8.2"
+version = "2.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alitra" },
@@ -676,9 +676,9 @@ dependencies = [
     { name = "transitions" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/51/aaac3e2521e74c44d572de1f4de163c289903d300ba2a17df0b49c516ad0/isar-2.8.2.tar.gz", hash = "sha256:76dd857de364e59ccbe146c010b2f84c8265dde851742bb86075991e87c71a59", size = 266282, upload-time = "2026-11-18T13:42:44.363Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/21/ca1e777511fb5b7e74ea1f4bf63d7dbc3421674561f4256735d5c81a9855/isar-2.9.0.tar.gz", hash = "sha256:d74e4919c2ef52850cc19c9a155de3199ec5b817eee0e815b302ba7b9eb59a7d", size = 262707, upload-time = "2026-11-19T14:09:55.972Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/84/5c5ca16a9a54f3f15784c8d991e335df5fceff1e51e06c385059bb502886/isar-2.8.2-py3-none-any.whl", hash = "sha256:9179a9b508b4edadd43cb4d6e7a6e2462946d6bd985f4cd1f6ad9d6a2f774fd4", size = 119708, upload-time = "2026-11-18T13:42:42.857Z" },
+    { url = "https://files.pythonhosted.org/packages/26/2a/eea6ef6624ca7611c9f0de79aff295136fedb444376dac53427a6e1885b8/isar-2.9.0-py3-none-any.whl", hash = "sha256:77311908e4f945f56f357947f97cee6d5f3cfb5d21b998520d6dde241d20b32f", size = 119737, upload-time = "2026-11-19T14:09:54.601Z" },
 ]
 
 [[package]]
@@ -715,7 +715,7 @@ requires-dist = [
     { name = "av", specifier = ">=16,<20" },
     { name = "azure-storage-blob", marker = "extra == 'dev'" },
     { name = "black", marker = "extra == 'dev'" },
-    { name = "isar", specifier = ">=2.8.2" },
+    { name = "isar", specifier = ">=2.9.0" },
     { name = "isort", marker = "extra == 'dev'" },
     { name = "livekit", specifier = ">=1,<2" },
     { name = "mypy", marker = "extra == 'dev'" },

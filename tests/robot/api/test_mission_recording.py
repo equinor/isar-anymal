@@ -75,6 +75,24 @@ def recorder(tmp_path):
     return recorder
 
 
+def test_start_persists_mission_name(recorder):
+    recorder.closing = False
+    recorder.sessions = {}
+    recorder.capture = AsyncMock(side_effect=lambda stop, *_: stop.set())
+
+    async def start():
+        recorder._start_session("mission", "Perimeter")
+        await recorder.workers["mission"][1]
+
+    asyncio.run(start())
+
+    session = recorder.sessions["mission"]
+    recovered = DriverRecordingSession.model_validate_json(
+        (recorder._session_directory(session) / "session.json").read_text()
+    )
+    assert recovered.mission_name == "Perimeter"
+
+
 def test_capture_persists_recoverable_catalog(recorder):
     session = DriverRecordingSession(run_id="mission", status="Starting", cameras={})
 
