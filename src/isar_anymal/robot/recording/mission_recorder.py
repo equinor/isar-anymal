@@ -18,7 +18,10 @@ from isar_anymal.robot.recording.models import (
     DriverCameraRecording,
     DriverRecordingSession,
 )
-from isar_anymal.robot.recording.session_finalizer import SessionFinalizer
+from isar_anymal.robot.recording.session_finalizer import (
+    FINALIZED_MARKER,
+    SessionFinalizer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,28 @@ class AnymalMissionRecorder(MissionRecorder):
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self.loop)
+        finalized_catalogs = self._recover_sessions()
+        if finalized_catalogs:
+            self.loop.create_task(
+                asyncio.to_thread(self._prune_finalized_catalogs, finalized_catalogs)
+            )
+        self.maintenance = self.loop.create_task(self._maintain_sessions())
+        self.ready.set()
+        try:
+            self.loop.run_forever()
+        finally:
+            tasks = asyncio.all_tasks(self.loop)
+            for task in tasks:
+                task.cancel()
+            self.loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+            self.loop.close()
+
+    def _recover_sessions(self) -> list[Path]:
+        finalized_catalogs: list[Path] = []
         for path in self.directory.glob("*/session.json"):
+            if (path.parent / FINALIZED_MARKER).is_file():
+                finalized_catalogs.append(path)
+                continue
             session = DriverRecordingSession.model_validate_json(path.read_text())
             logger.info(
                 "Recording session recovered mission_id=%s previous_status=%s interrupted=%s",
@@ -91,24 +115,32 @@ class AnymalMissionRecorder(MissionRecorder):
                         reason="ISAR restarted; mission continuity unknown",
                     )
                 )
+                self._persist(session)
             self.sessions[session.run_id] = session
-            self._persist(session)
-        self.maintenance = self.loop.create_task(self._maintain_sessions())
-        self.ready.set()
-        try:
-            self.loop.run_forever()
-        finally:
-            tasks = asyncio.all_tasks(self.loop)
-            for task in tasks:
-                task.cancel()
-            self.loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-            self.loop.close()
+        return finalized_catalogs
 
-    def _session_directory(self, session: DriverRecordingSession) -> Path:
-        return self.directory / hashlib.sha256(session.run_id.encode()).hexdigest()
+    @staticmethod
+    def _prune_finalized_catalogs(catalogs: list[Path]) -> None:
+        failures = 0
+        for path in catalogs:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                failures += 1
+        logger.info(
+            "Finalized recording catalogs cleaned up: %d", len(catalogs) - failures
+        )
+        if failures:
+            logger.warning(
+                "Could not remove %d finalized recording catalogs; will retry on startup",
+                failures,
+            )
+
+    def _session_directory(self, mission_id: str) -> Path:
+        return self.directory / hashlib.sha256(mission_id.encode()).hexdigest()
 
     def _persist(self, session: DriverRecordingSession) -> None:
-        directory = self._session_directory(session)
+        directory = self._session_directory(session.run_id)
         directory.mkdir(exist_ok=True)
         temporary = directory / "session.tmp"
         temporary.write_text(session.model_dump_json(by_alias=True, exclude_none=True))
@@ -119,6 +151,8 @@ class AnymalMissionRecorder(MissionRecorder):
 
     def _start_session(self, mission_id: str, mission_name: str) -> None:
         if self.closing or mission_id in self.workers:
+            return
+        if (self._session_directory(mission_id) / FINALIZED_MARKER).is_file():
             return
         existing = self.sessions.get(mission_id)
         if existing and existing.ended_at:
@@ -183,7 +217,7 @@ class AnymalMissionRecorder(MissionRecorder):
             session.error = None
             self._persist(session)
             return (
-                self._session_directory(session)
+                self._session_directory(session.run_id)
                 / f"{recording.key}-{recording.segments:05}.mkv"
             )
 
@@ -226,7 +260,10 @@ class AnymalMissionRecorder(MissionRecorder):
 
     async def _finalize(self, session: DriverRecordingSession) -> None:
         finalizer = SessionFinalizer(self.publisher, self._persist, self._publish)
-        await finalizer.finalize_session(session, self._session_directory(session))
+        directory = self._session_directory(session.run_id)
+        await finalizer.finalize_session(session, directory)
+        (directory / "session.json").unlink(missing_ok=True)
+        self.sessions.pop(session.run_id, None)
 
     async def _maintain_sessions(self) -> None:
         previous_failures: dict[str, str] = {}

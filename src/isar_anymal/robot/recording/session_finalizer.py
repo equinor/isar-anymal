@@ -20,6 +20,7 @@ from isar_anymal.robot.recording.models import (
 )
 
 logger = logging.getLogger(__name__)
+FINALIZED_MARKER = "finalized"
 
 
 class SessionFinalizer:
@@ -39,8 +40,8 @@ class SessionFinalizer:
         self, session: DriverRecordingSession, directory: Path
     ) -> None:
         """Attempt each camera once, persist terminal results, and remove local media."""
-        completion_marker = directory / "finalized"
-        if completion_marker.exists():
+        completion_marker = directory / FINALIZED_MARKER
+        if completion_marker.is_file():
             return
 
         previous_status = session.status
