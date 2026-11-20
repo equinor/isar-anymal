@@ -181,155 +181,91 @@ def test_visual_inspection() -> None:
     assert inspection_event.measurement.type == InspectionMeasurementType.IMT_VISUAL
 
 
-def test_robot_status_home_when_battery_is_charging_or_full(mocker) -> None:
+@pytest.fixture
+def online_anymal(mocker: MockerFixture) -> API:
     mock_subscribe_callback_functions(mocker)
-
-    mocker.patch.object(
-        API,
-        "robot_is_online",
-        return_value=True,
-    )
-
-    anymal: API = API()
-    anymal.battery_handler.battery.state = BatteryState.Charging
-    anymal.battery_handler.battery.level = 50.0
-
-    robot_status: RobotStatus = anymal.get_robot_status()
-    assert robot_status == RobotStatus.Home
-
-    anymal.battery_handler.battery.state = BatteryState.Normal
-    anymal.battery_handler.battery.level = 100.0
-    robot_status = anymal.get_robot_status()
-    assert robot_status == RobotStatus.Home
-
-
-def test_robot_status_not_home_when_battery_is_not_charging_nor_full(mocker) -> None:
-    mock_subscribe_callback_functions(mocker)
-
-    anymal: API = API()
-    anymal.battery_handler.battery.state = BatteryState.Normal
-    anymal.battery_handler.battery.level = 50.0
-
-    mocker.patch.object(
-        API,
-        "robot_is_online",
-        return_value=True,
-    )
-
-    robot_status: RobotStatus = anymal.get_robot_status()
-    assert robot_status != RobotStatus.Home
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    return API()
 
 
 @pytest.mark.parametrize(
-    "last_known_battery_state, expected_status",
+    "battery_state, expected_status",
     [
         (BatteryState.Charging, RobotStatus.Home),
         (BatteryState.Normal, RobotStatus.Available),
     ],
 )
-def test_robot_status_keeps_last_known_status_when_home_status_unknown(
-    mocker: MockerFixture,
-    caplog,
-    last_known_battery_state: BatteryState,
-    expected_status: RobotStatus,
+def test_robot_status_home_only_when_charging(
+    online_anymal: API, battery_state: BatteryState, expected_status: RobotStatus
 ) -> None:
-    mock_subscribe_callback_functions(mocker)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-    anymal.battery_handler.battery.state = last_known_battery_state
-    anymal.battery_handler.battery.level = 50.0
-    anymal.get_robot_status()
+    online_anymal.battery_handler.battery.state = battery_state
+    online_anymal.battery_handler.battery.level = 100.0
 
-    anymal.battery_handler.battery.state = None
-    statuses = [anymal.get_robot_status() for _ in range(3)]
+    assert online_anymal.get_robot_status() == expected_status
 
-    assert statuses == [expected_status] * 3
+
+def test_robot_status_home_after_dock_confirmed_when_not_charging(
+    online_anymal: API,
+) -> None:
+    online_anymal.battery_handler.battery.state = BatteryState.Normal
+    online_anymal.battery_handler.battery.level = 100.0
+
+    online_anymal.confirm_home()
+
+    assert online_anymal.get_robot_status() == RobotStatus.Home
+
+
+def test_robot_status_home_after_dock_confirmed_when_home_status_unknown(
+    online_anymal: API, caplog
+) -> None:
+    online_anymal.confirm_home()
+
+    assert online_anymal.get_robot_status() == RobotStatus.Home
+    assert "Could not determine if robot is home" not in caplog.text
+
+
+def test_robot_status_available_when_home_status_unknown(
+    online_anymal: API, caplog
+) -> None:
+    statuses = [online_anymal.get_robot_status() for _ in range(3)]
+
+    assert statuses == [RobotStatus.Available] * 3
     assert caplog.text.count("Could not determine if robot is home") == 1
 
 
 def test_robot_status_recovers_when_home_status_known_again(
-    mocker: MockerFixture, caplog
+    online_anymal: API, caplog
 ) -> None:
-    mock_subscribe_callback_functions(mocker)
     caplog.set_level(logging.INFO)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-    anymal.battery_handler.battery.level = 50.0
-    anymal.battery_handler.battery.state = BatteryState.Charging
-    anymal.get_robot_status()
-    anymal.battery_handler.battery.state = None
-    anymal.get_robot_status()
+    online_anymal.get_robot_status()
 
-    anymal.battery_handler.battery.state = BatteryState.Normal
+    online_anymal.battery_handler.battery.state = BatteryState.Charging
 
-    assert anymal.get_robot_status() == RobotStatus.Available
+    assert online_anymal.get_robot_status() == RobotStatus.Home
     assert "Home status determined again" in caplog.text
 
 
-def test_robot_status_available_when_home_status_never_known(
+def test_robot_status_available_after_forgetting_confirmed_dock(
+    online_anymal: API,
+) -> None:
+    online_anymal.battery_handler.battery.state = BatteryState.Normal
+    online_anymal.confirm_home()
+
+    online_anymal.forget_home()
+
+    assert online_anymal.get_robot_status() == RobotStatus.Available
+
+
+def test_robot_status_forgets_confirmed_dock_after_going_offline(
     mocker: MockerFixture,
 ) -> None:
     mock_subscribe_callback_functions(mocker)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-
-    assert anymal.get_robot_status() == RobotStatus.Available
-
-
-def test_robot_status_home_after_dock_confirmed_when_home_status_never_known(
-    mocker: MockerFixture,
-) -> None:
-    mock_subscribe_callback_functions(mocker)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-
-    anymal.confirm_home()
-
-    assert anymal.get_robot_status() == RobotStatus.Home
-
-
-def test_robot_status_available_after_forgetting_home_when_home_status_unknown(
-    mocker: MockerFixture,
-) -> None:
-    mock_subscribe_callback_functions(mocker)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
+    robot_is_online = mocker.patch.object(API, "robot_is_online", return_value=False)
     anymal = API()
     anymal.confirm_home()
-
-    anymal.forget_last_known_status()
-
-    assert anymal.get_robot_status() == RobotStatus.Available
-
-
-def test_robot_status_does_not_cache_home_from_full_battery_alone(
-    mocker: MockerFixture,
-) -> None:
-    mock_subscribe_callback_functions(mocker)
-    mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-    anymal.battery_handler.battery.state = BatteryState.Normal
-    anymal.battery_handler.battery.level = 99.0
-    assert anymal.get_robot_status() == RobotStatus.Home
-
-    anymal.battery_handler.battery.state = None
-
-    assert anymal.get_robot_status() == RobotStatus.Available
-
-
-def test_robot_status_forgets_home_after_going_offline(
-    mocker: MockerFixture,
-) -> None:
-    mock_subscribe_callback_functions(mocker)
-    robot_is_online = mocker.patch.object(API, "robot_is_online", return_value=True)
-    anymal = API()
-    anymal.battery_handler.battery.state = BatteryState.Charging
-    anymal.battery_handler.battery.level = 50.0
-    anymal.get_robot_status()
-    robot_is_online.return_value = False
     anymal.get_robot_status()
 
     robot_is_online.return_value = True
-    anymal.battery_handler.battery.state = None
 
     assert anymal.get_robot_status() == RobotStatus.Available
 
