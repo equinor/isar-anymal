@@ -139,6 +139,41 @@ def test_that_mission_status_for_the_current_mission_run_is_reported():
     )
 
 
+@pytest.mark.parametrize(
+    "return_home_running, mission_status, expect_confirmed",
+    [
+        (True, MissionStatus.Successful, True),
+        (True, MissionStatus.Failed, False),
+        (False, MissionStatus.Successful, False),
+    ],
+)
+def test_that_only_successful_return_home_confirms_robot_is_home(
+    return_home_running: bool,
+    mission_status: MissionStatus,
+    expect_confirmed: bool,
+):
+    robot: Robot = _robot_without_init(_event_for_run("anymal-mission-id"))
+    robot.return_to_home_mission_running = return_home_running
+    robot.anymal.get_mission_status = lambda: mission_status
+    confirmed: list[bool] = []
+    robot.anymal.confirm_home = lambda: confirmed.append(True)
+
+    robot.mission_status(mission_id="isar-mission-id")
+
+    assert bool(confirmed) == expect_confirmed
+
+
+def test_that_starting_return_home_forgets_confirmed_dock():
+    robot: Robot = _robot_without_init(last_mission_event=None)
+    forgotten: list[bool] = []
+    robot.anymal.forget_home = lambda: forgotten.append(True)
+    robot.anymal.start_dock_mission = lambda: "dock-run-id"
+
+    robot.initiate_return_home("isar-mission-id")
+
+    assert forgotten
+
+
 def _fail_if_called(*_args: object, **_kwargs: object) -> None:
     raise AssertionError("status must not be read from a stale mission event")
 

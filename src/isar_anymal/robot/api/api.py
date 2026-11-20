@@ -65,6 +65,8 @@ class API:
         self.control_status_handler: ControlStatusHandler = ControlStatusHandler()
         self.mission_status_handler: MissionStatusHandler = MissionStatusHandler()
         self.main_body_state_handler: MainBodyStateHandler = MainBodyStateHandler()
+        self._dock_confirmed: bool = False
+        self._home_status_unknown: bool = False
 
         map_alignment: MapAlignment = MapAlignment.from_config(
             Path(
@@ -319,6 +321,7 @@ class API:
 
     def get_robot_status(self) -> RobotStatus:
         if not self.robot_is_online():
+            self.forget_home()
             return RobotStatus.Offline
 
         if not settings.AUTO_DISABLE_PROTECTIVE_STOP:
@@ -326,6 +329,7 @@ class API:
                 self.control_status_handler.control_status.protective_stop_engaged
             )
             if protective_stop_engaged:
+                self.forget_home()
                 return RobotStatus.TeleOperation
             if protective_stop_engaged is None:
                 logger.warning(
@@ -333,14 +337,32 @@ class API:
                 )
 
         try:
-            if self.robot_is_home():
-                return RobotStatus.Home
-        except RobotException:
-            logger.warning(
-                "Could not determine if robot is home, will default to available"
+            status: RobotStatus = (
+                RobotStatus.Home if self.robot_is_home() else RobotStatus.Available
             )
+        except RobotException as e:
+            if not self._home_status_unknown:
+                logger.warning(
+                    f"Could not determine if robot is home ({e.error_description}), "
+                    f"will default to {RobotStatus.Available}"
+                )
+                self._home_status_unknown = True
+            return RobotStatus.Available
 
-        return RobotStatus.Available
+        if self._home_status_unknown:
+            logger.info(f"Home status determined again, robot status: {status}")
+            self._home_status_unknown = False
+        return status
+
+    def confirm_home(self) -> None:
+        """Treat the robot as home after a successful dock mission."""
+        if not self._dock_confirmed:
+            logger.info("Dock mission succeeded, robot is considered home")
+        self._dock_confirmed = True
+
+    def forget_home(self) -> None:
+        """Stop treating the robot as docked, as it may leave the dock."""
+        self._dock_confirmed = False
 
     def robot_is_online(self) -> bool:
         try:
@@ -362,16 +384,15 @@ class API:
         return False
 
     def robot_is_home(self) -> bool:
+        # A docked robot may stop charging when full, so a successful dock mission is
+        # trusted until the robot may leave the dock. It does not rely on telemetry.
+        if self._dock_confirmed:
+            return True
+
         if self.battery_handler.battery.state is None:
             raise RobotTelemetryNoUpdateException("Could not get battery state")
 
-        if self.battery_handler.battery.level is None:
-            raise RobotTelemetryNoUpdateException("Could not get battery level")
-
-        if self.battery_handler.battery.state is BatteryState.Charging:
-            return True
-
-        return self.battery_handler.battery.level >= settings.BATTERY_FULL_VALUE
+        return self.battery_handler.battery.state is BatteryState.Charging
 
     def get_pose_telemetry_payload(self) -> str:
         retry_count: int = 0
