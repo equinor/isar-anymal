@@ -163,6 +163,17 @@ def test_that_only_successful_return_home_confirms_robot_is_home(
     assert bool(confirmed) == expect_confirmed
 
 
+def test_that_starting_return_home_forgets_last_known_status():
+    robot: Robot = _robot_without_init(last_mission_event=None)
+    forgotten: list[bool] = []
+    robot.anymal.forget_last_known_status = lambda: forgotten.append(True)
+    robot.anymal.start_dock_mission = lambda: "dock-run-id"
+
+    robot.initiate_return_home("isar-mission-id")
+
+    assert forgotten
+
+
 def _fail_if_called(*_args: object, **_kwargs: object) -> None:
     raise AssertionError("status must not be read from a stale mission event")
 

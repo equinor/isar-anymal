@@ -90,6 +90,7 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id = None
         self.current_isar_mission_id = None
         self.anymal.mission_status_handler.last_mission_event = None
+        self.anymal.forget_last_known_status()
 
         self.return_to_home_mission_running = False
         self.stored_mission_running = False
@@ -138,6 +139,7 @@ class Robot(RobotInterface):
         logger.info(f"Received request to return home with ID {mission_id}")
 
         self.anymal.mission_status_handler.last_mission_event = None
+        self.anymal.forget_last_known_status()
         self.stored_mission_running = False
         self.current_anymal_mission_id = self.anymal.start_dock_mission()
         self.current_isar_mission_id = mission_id

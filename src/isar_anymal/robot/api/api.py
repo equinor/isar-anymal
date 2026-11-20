@@ -358,6 +358,10 @@ class API:
             logger.info("Dock mission succeeded, robot is considered home")
         self._last_known_status = RobotStatus.Home
 
+    def forget_last_known_status(self) -> None:
+        """Forget the cached status when the robot may leave its current position."""
+        self._last_known_status = None
+
     def _robot_status_when_home_status_unknown(
         self, error: RobotException
     ) -> RobotStatus:
