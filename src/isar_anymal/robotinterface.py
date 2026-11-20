@@ -196,7 +196,14 @@ class Robot(RobotInterface):
 
         if self.stored_mission_running:
             return self.anymal.get_mission_status(stored_mission=True)
-        return self.anymal.get_mission_status()
+
+        mission_status: MissionStatus = self.anymal.get_mission_status()
+        if (
+            self.return_to_home_mission_running
+            and mission_status == MissionStatus.Successful
+        ):
+            self.anymal.confirm_home()
+        return mission_status
 
     def _current_mission_event(self) -> MissionEventDto | None:
         """Return the last mission event, if it belongs to the running mission.

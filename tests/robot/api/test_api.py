@@ -276,6 +276,18 @@ def test_robot_status_available_when_home_status_never_known(
     assert anymal.get_robot_status() == RobotStatus.Available
 
 
+def test_robot_status_home_after_dock_confirmed_when_home_status_never_known(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+
+    anymal.confirm_home()
+
+    assert anymal.get_robot_status() == RobotStatus.Home
+
+
 def test_robot_status_forgets_home_after_going_offline(
     mocker: MockerFixture,
 ) -> None:

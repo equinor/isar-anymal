@@ -349,6 +349,15 @@ class API:
         self._last_known_status = status
         return status
 
+    def confirm_home(self) -> None:
+        """Treat the robot as home after a successful dock mission.
+
+        Live telemetry still takes precedence when it can be read.
+        """
+        if self._last_known_status != RobotStatus.Home:
+            logger.info("Dock mission succeeded, robot is considered home")
+        self._last_known_status = RobotStatus.Home
+
     def _robot_status_when_home_status_unknown(
         self, error: RobotException
     ) -> RobotStatus:
