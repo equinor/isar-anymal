@@ -1,3 +1,5 @@
+import base64
+import json
 from collections import deque
 from pathlib import Path
 from unittest.mock import Mock, call
@@ -14,6 +16,7 @@ from robot_interface.models.inspection.inspection import (
     AcousticMeasurement,
     Image,
     ImageMetadata,
+    ThermalImage,
 )
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.task import TASKS, TakeImage
@@ -31,6 +34,7 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers import (
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     _fetch_blob_via_data_navigator,
     _process_acoustic_inspection,
+    _process_inspection_blob,
     _process_inspection_value,
 )
 from isar_anymal.robot.api.request_handler import RequestHandler
@@ -206,6 +210,68 @@ def test_fetch_blob_exhausts_request_retries(
 
     assert request_handler.get.call_count == len(responses)
     assert retry_sleep.call_args_list == [call(10)] * 5
+
+
+def _thermal_event() -> InspectionEventDto:
+    measurement = InspectionMeasurementDto.model_construct(
+        type=InspectionMeasurementType.IMT_THERMAL
+    )
+    return InspectionEventDto.model_construct(
+        measurement=measurement, task_run_uid="task-1"
+    )
+
+
+def _thermal_request_handler(listing_response: Mock, image: dict) -> Mock:
+    raw_data_response = Mock(spec=Response)
+    raw_data_response.content = json.dumps(image).encode()
+    raw_data_response.headers = {"content-type": "application/json; charset=utf-8"}
+    request_handler = Mock(spec=RequestHandler)
+    request_handler.get.side_effect = [listing_response, raw_data_response]
+    return request_handler
+
+
+def test_thermal_json_is_converted_to_mono16(listing_response: Mock) -> None:
+    pixels = b"\x01\x00\x02\x00\x03\x00\x04\x00"
+    image = {
+        "data": base64.b64encode(pixels).decode(),
+        "encoding": "mono16",
+        "height": 2,
+        "step": 4,
+        "width": 2,
+    }
+
+    file_bytes, _, file_type, inspection_type, _ = _process_inspection_blob(
+        event=_thermal_event(),
+        request_handler=_thermal_request_handler(listing_response, image),
+        task=Mock(),
+    )
+
+    assert file_bytes == pixels
+    assert file_type == "mono16"
+    assert inspection_type is ThermalImage
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        {"data": "", "encoding": "rgb8", "height": 0, "step": 0, "width": 0},
+        {
+            # Row padding (step > width * 2) would skew the image in SARA
+            "data": base64.b64encode(bytes(12)).decode(),
+            "encoding": "mono16",
+            "height": 2,
+            "step": 6,
+            "width": 2,
+        },
+    ],
+)
+def test_unsupported_thermal_json_raises(image: dict, listing_response: Mock) -> None:
+    with pytest.raises(RobotRetrieveInspectionException):
+        _process_inspection_blob(
+            event=_thermal_event(),
+            request_handler=_thermal_request_handler(listing_response, image),
+            task=Mock(),
+        )
 
 
 def test_failed_inspection_stays_pending_then_delivers_once(
