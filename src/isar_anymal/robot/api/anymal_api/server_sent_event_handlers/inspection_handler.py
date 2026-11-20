@@ -1,3 +1,5 @@
+import base64
+import binascii
 import logging
 import math
 import time
@@ -40,6 +42,7 @@ from isar_anymal.robot.api.anymal_api.enums import (
 )
 from isar_anymal.robot.api.anymal_api.models import (
     ConcentrationMeasurementDto,
+    ImageDto,
     InspectionEventDto,
     LeakDetectionInterpretationDto,
     VideoMeasurementDto,
@@ -288,6 +291,9 @@ def _process_inspection_blob(
         file_bytes, file_type = _fetch_blob_via_data_navigator(
             task_run_uid=event.task_run_uid, request_handler=request_handler
         )
+        if file_type.split(";")[0].strip() == "json":
+            file_bytes = _convert_thermal_json_to_mono16(file_bytes)
+            file_type = "mono16"
         # We can also gather the 'gain' and 'offset' from the thermal_image metadata
 
     elif event.measurement.type == InspectionMeasurementType.IMT_VISUAL:
@@ -340,6 +346,41 @@ def _process_inspection_blob(
         )
 
     return file_bytes, metadata_type, file_type, inspection_type, video_duration
+
+
+def _convert_thermal_json_to_mono16(file_bytes: bytes) -> bytes:
+    """Data-navigator serves thermal images as JSON with base64 encoded mono16 pixels.
+    Return the raw pixel bytes as expected by SARA."""
+    try:
+        image = ImageDto.model_validate_json(file_bytes)
+    except ValidationError as e:
+        raise RobotRetrieveInspectionException(
+            "Failed to parse thermal image JSON"
+        ) from e
+
+    if image.encoding != "mono16" or image.data is None:
+        raise RobotRetrieveInspectionException(
+            f"Unsupported thermal image with encoding {image.encoding}"
+        )
+
+    try:
+        data = base64.b64decode(image.data, validate=True)
+    except binascii.Error as e:
+        raise RobotRetrieveInspectionException(
+            "Failed to decode thermal image data"
+        ) from e
+
+    # The JSON follows the ROS sensor_msgs/Image format, where step is the row length
+    # in bytes and may include padding. SARA infers the image shape from the pixel
+    # count alone, so padded rows or a size mismatch would give a skewed image.
+    width, height, step = int(image.width), int(image.height), int(image.step)
+    if step != width * 2 or len(data) != height * step:
+        raise RobotRetrieveInspectionException(
+            f"Thermal image data of {len(data)} bytes does not match "
+            f"width={width}, height={height}, step={step}"
+        )
+
+    return data
 
 
 def _fetch_inspection_filename(
