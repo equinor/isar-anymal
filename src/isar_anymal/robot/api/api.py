@@ -1,7 +1,6 @@
 import logging
 import math
 import os
-import threading
 import time
 from pathlib import Path
 
@@ -67,8 +66,6 @@ class API:
         self.mission_status_handler: MissionStatusHandler = MissionStatusHandler()
         self.main_body_state_handler: MainBodyStateHandler = MainBodyStateHandler()
         self._last_known_status: RobotStatus | None = None
-        self._may_have_left_home: bool = False
-        self._last_known_status_lock: threading.Lock = threading.Lock()
         self._home_status_unknown: bool = False
 
         map_alignment: MapAlignment = MapAlignment.from_config(
@@ -350,14 +347,10 @@ class API:
         if self._home_status_unknown:
             logger.info(f"Home status determined again, robot status: {status}")
             self._home_status_unknown = False
-        with self._last_known_status_lock:
-            # A full battery away from the dock also reads as home, so only cache a
-            # live Home while charging. Once the robot may have left home, only a
-            # successful dock mission may cache Home.
-            if status == RobotStatus.Available or (
-                charging and not self._may_have_left_home
-            ):
-                self._last_known_status = status
+        # A full battery away from the dock also reads as home, so only cache a live
+        # Home while charging.
+        if status == RobotStatus.Available or charging:
+            self._last_known_status = status
         return status
 
     def confirm_home(self) -> None:
@@ -365,17 +358,13 @@ class API:
 
         Live telemetry still takes precedence when it can be read.
         """
-        with self._last_known_status_lock:
-            if self._last_known_status != RobotStatus.Home:
-                logger.info("Dock mission succeeded, robot is considered home")
-            self._last_known_status = RobotStatus.Home
-            self._may_have_left_home = False
+        if self._last_known_status != RobotStatus.Home:
+            logger.info("Dock mission succeeded, robot is considered home")
+        self._last_known_status = RobotStatus.Home
 
     def forget_last_known_status(self) -> None:
         """Forget the cached status when the robot may leave its current position."""
-        with self._last_known_status_lock:
-            self._last_known_status = None
-            self._may_have_left_home = True
+        self._last_known_status = None
 
     def _robot_status_when_home_status_unknown(
         self, error: RobotException
