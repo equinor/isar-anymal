@@ -65,6 +65,8 @@ class API:
         self.control_status_handler: ControlStatusHandler = ControlStatusHandler()
         self.mission_status_handler: MissionStatusHandler = MissionStatusHandler()
         self.main_body_state_handler: MainBodyStateHandler = MainBodyStateHandler()
+        self._last_known_status: RobotStatus | None = None
+        self._home_status_unknown: bool = False
 
         map_alignment: MapAlignment = MapAlignment.from_config(
             Path(
@@ -319,6 +321,7 @@ class API:
 
     def get_robot_status(self) -> RobotStatus:
         if not self.robot_is_online():
+            self._last_known_status = None
             return RobotStatus.Offline
 
         if not settings.AUTO_DISABLE_PROTECTIVE_STOP:
@@ -326,6 +329,7 @@ class API:
                 self.control_status_handler.control_status.protective_stop_engaged
             )
             if protective_stop_engaged:
+                self._last_known_status = None
                 return RobotStatus.TeleOperation
             if protective_stop_engaged is None:
                 logger.warning(
@@ -333,14 +337,35 @@ class API:
                 )
 
         try:
-            if self.robot_is_home():
-                return RobotStatus.Home
-        except RobotException:
-            logger.warning(
-                "Could not determine if robot is home, will default to available"
+            status: RobotStatus = (
+                RobotStatus.Home if self.robot_is_home() else RobotStatus.Available
             )
+        except RobotException as e:
+            return self._robot_status_when_home_status_unknown(e)
 
-        return RobotStatus.Available
+        if self._home_status_unknown:
+            logger.info(f"Home status determined again, robot status: {status}")
+            self._home_status_unknown = False
+        self._last_known_status = status
+        return status
+
+    def _robot_status_when_home_status_unknown(
+        self, error: RobotException
+    ) -> RobotStatus:
+        # Unknown telemetry must not flip a docked robot to Available, as ISAR would
+        # then repeatedly send it home.
+        if not self._home_status_unknown:
+            fallback: str = (
+                f"last known status {self._last_known_status}"
+                if self._last_known_status is not None
+                else f"{RobotStatus.Available}"
+            )
+            logger.warning(
+                f"Could not determine if robot is home ({error.error_description}), "
+                f"will use {fallback} until home status can be determined"
+            )
+            self._home_status_unknown = True
+        return self._last_known_status or RobotStatus.Available
 
     def robot_is_online(self) -> bool:
         try:

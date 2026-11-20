@@ -47,7 +47,7 @@ class ANYmalAPI:
             )
         except RequestException as e:
             raise RobotCommunicationException(
-                error_description="API request to get control lease failed"
+                error_description=f"API request to get control lease failed: {e}"
             ) from e
 
         lease_response: LeaseControlResponseDto = _parse_response_into_model(
@@ -72,7 +72,7 @@ class ANYmalAPI:
             )
         except RequestException as e:
             raise RobotCommunicationException(
-                error_description="API request to release control lease failes"
+                error_description=f"API request to release control lease failed: {e}"
             ) from e
 
         release_response: ReleaseControlResponseDto = _parse_response_into_model(

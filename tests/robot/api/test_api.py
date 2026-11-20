@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from threading import Event
 
@@ -217,6 +218,95 @@ def test_robot_status_not_home_when_battery_is_not_charging_nor_full(mocker) -> 
 
     robot_status: RobotStatus = anymal.get_robot_status()
     assert robot_status != RobotStatus.Home
+
+
+@pytest.mark.parametrize(
+    "last_known_battery_state, expected_status",
+    [
+        (BatteryState.Charging, RobotStatus.Home),
+        (BatteryState.Normal, RobotStatus.Available),
+    ],
+)
+def test_robot_status_keeps_last_known_status_when_home_status_unknown(
+    mocker: MockerFixture,
+    caplog,
+    last_known_battery_state: BatteryState,
+    expected_status: RobotStatus,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+    anymal.battery_handler.battery.state = last_known_battery_state
+    anymal.battery_handler.battery.level = 50.0
+    anymal.get_robot_status()
+
+    anymal.battery_handler.battery.state = None
+    statuses = [anymal.get_robot_status() for _ in range(3)]
+
+    assert statuses == [expected_status] * 3
+    assert caplog.text.count("Could not determine if robot is home") == 1
+
+
+def test_robot_status_recovers_when_home_status_known_again(
+    mocker: MockerFixture, caplog
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    caplog.set_level(logging.INFO)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+    anymal.battery_handler.battery.level = 50.0
+    anymal.battery_handler.battery.state = BatteryState.Charging
+    anymal.get_robot_status()
+    anymal.battery_handler.battery.state = None
+    anymal.get_robot_status()
+
+    anymal.battery_handler.battery.state = BatteryState.Normal
+
+    assert anymal.get_robot_status() == RobotStatus.Available
+    assert "Home status determined again" in caplog.text
+
+
+def test_robot_status_available_when_home_status_never_known(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+
+    assert anymal.get_robot_status() == RobotStatus.Available
+
+
+def test_robot_status_forgets_home_after_going_offline(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    robot_is_online = mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+    anymal.battery_handler.battery.state = BatteryState.Charging
+    anymal.battery_handler.battery.level = 50.0
+    anymal.get_robot_status()
+    robot_is_online.return_value = False
+    anymal.get_robot_status()
+
+    robot_is_online.return_value = True
+    anymal.battery_handler.battery.state = None
+
+    assert anymal.get_robot_status() == RobotStatus.Available
+
+
+def test_control_lease_request_failure_includes_cause(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    anymal = API()
+    mocker.patch.object(
+        anymal.request_handler, "post", side_effect=Timeout("Read timed out")
+    )
+
+    with pytest.raises(RobotCommunicationException) as exc_info:
+        anymal.take_control()
+
+    assert "Read timed out" in exc_info.value.error_description
 
 
 @pytest.mark.parametrize("error_type", [ConnectionError, Timeout, HTTPError])
