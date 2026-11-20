@@ -345,15 +345,18 @@ class API:
             )
         except RobotException as e:
             return self._robot_status_when_home_status_unknown(e)
+        charging: bool = self.battery_handler.battery.state is BatteryState.Charging
 
         if self._home_status_unknown:
             logger.info(f"Home status determined again, robot status: {status}")
             self._home_status_unknown = False
         with self._last_known_status_lock:
-            # Once the robot may have left home, only a successful dock mission
-            # may cache Home. Live Home readings are not trusted for the cache, as
-            # a full battery away from the dock also reads as home.
-            if status == RobotStatus.Available or not self._may_have_left_home:
+            # A full battery away from the dock also reads as home, so only cache a
+            # live Home while charging. Once the robot may have left home, only a
+            # successful dock mission may cache Home.
+            if status == RobotStatus.Available or (
+                charging and not self._may_have_left_home
+            ):
                 self._last_known_status = status
         return status
 

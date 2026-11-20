@@ -301,6 +301,21 @@ def test_robot_status_available_after_forgetting_home_when_home_status_unknown(
     assert anymal.get_robot_status() == RobotStatus.Available
 
 
+def test_robot_status_does_not_cache_home_from_full_battery_alone(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    anymal = API()
+    anymal.battery_handler.battery.state = BatteryState.Normal
+    anymal.battery_handler.battery.level = 99.0
+    assert anymal.get_robot_status() == RobotStatus.Home
+
+    anymal.battery_handler.battery.state = None
+
+    assert anymal.get_robot_status() == RobotStatus.Available
+
+
 def test_robot_status_does_not_cache_live_home_after_robot_may_have_left(
     mocker: MockerFixture,
 ) -> None:
