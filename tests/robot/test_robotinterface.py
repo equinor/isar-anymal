@@ -140,21 +140,24 @@ def test_that_mission_status_for_the_current_mission_run_is_reported():
 
 
 @pytest.mark.parametrize(
-    "return_home_running, mission_status, expect_confirmed",
+    "return_home_running, mission_status, dock_task_status, expect_confirmed",
     [
-        (True, MissionStatus.Successful, True),
-        (True, MissionStatus.Failed, False),
-        (False, MissionStatus.Successful, False),
+        (True, MissionStatus.Successful, TaskStatus.Successful, True),
+        (True, MissionStatus.Successful, TaskStatus.Failed, False),
+        (True, MissionStatus.Failed, TaskStatus.Failed, False),
+        (False, MissionStatus.Successful, TaskStatus.Successful, False),
     ],
 )
-def test_that_only_successful_return_home_confirms_robot_is_home(
+def test_that_only_successful_dock_confirms_robot_is_home(
     return_home_running: bool,
     mission_status: MissionStatus,
+    dock_task_status: TaskStatus,
     expect_confirmed: bool,
 ):
     robot: Robot = _robot_without_init(_event_for_run("anymal-mission-id"))
     robot.return_to_home_mission_running = return_home_running
     robot.anymal.get_mission_status = lambda: mission_status
+    robot.anymal.get_task_status = lambda task_id: dock_task_status
     confirmed: list[bool] = []
     robot.anymal.confirm_home = lambda: confirmed.append(True)
 

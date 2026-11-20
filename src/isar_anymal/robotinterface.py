@@ -203,9 +203,24 @@ class Robot(RobotInterface):
         if (
             self.return_to_home_mission_running
             and mission_status == MissionStatus.Successful
+            and self._dock_task_succeeded()
         ):
             self.anymal.confirm_home()
         return mission_status
+
+    def _dock_task_succeeded(self) -> bool:
+        # Mission status counts mixed task outcomes as successful, so check the
+        # dock task itself before treating the robot as home.
+        try:
+            return (
+                self.anymal.get_task_status(task_id=settings.DOCK_TASK_ID)
+                == TaskStatus.Successful
+            )
+        except RobotException as e:
+            logger.warning(
+                f"Could not confirm that the robot docked: {e.error_description}"
+            )
+            return False
 
     def _current_mission_event(self) -> MissionEventDto | None:
         """Return the last mission event, if it belongs to the running mission.
