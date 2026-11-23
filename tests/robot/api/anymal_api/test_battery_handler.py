@@ -140,5 +140,5 @@ def test_unavailable_battery_is_not_published_as_healthy_or_home(
         anymal.get_battery_state()
     with pytest.raises(RobotTelemetryNoUpdateException, match="battery state"):
         anymal.get_battery_telemetry_payload()
-    with pytest.raises(RobotTelemetryNoUpdateException, match="battery state"):
+    with pytest.raises(RobotTelemetryNoUpdateException, match="robot is home"):
         anymal.robot_is_home()
