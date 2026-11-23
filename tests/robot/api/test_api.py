@@ -9,7 +9,6 @@ from pytest_mock import MockerFixture
 from requests import ConnectionError, HTTPError, RequestException, Timeout
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotCommunicationException,
-    RobotTelemetryNoUpdateException,
 )
 from robot_interface.models.inspection.inspection import Image, ImageMetadata
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
@@ -255,25 +254,43 @@ def test_robot_status_not_home_when_full_without_dock(online_anymal: API) -> Non
     assert online_anymal.get_robot_status() == RobotStatus.Available
 
 
-def test_robot_status_home_after_successful_dock_when_battery_state_unknown(
-    online_anymal: API,
+@pytest.mark.parametrize(
+    "battery_level, expected_status",
+    [
+        (None, RobotStatus.Home),
+        (50.0, RobotStatus.Home),
+        (20.0, RobotStatus.Available),
+    ],
+)
+def test_robot_status_after_successful_dock_when_battery_state_unknown(
+    online_anymal: API, battery_level: float | None, expected_status: RobotStatus
 ) -> None:
+    online_anymal.battery_handler.battery.level = battery_level
     online_anymal.battery_handler.set_battery_state(BatteryStatus.BS_ERROR)
     online_anymal.mission_status_handler.last_mission_event = _mission_event(
         settings.DOCK_MISSION_NAME, "OC_SUCCESS"
     )
 
-    assert online_anymal.get_robot_status() == RobotStatus.Home
+    assert online_anymal.get_robot_status() == expected_status
 
 
-def test_robot_status_raises_when_battery_state_unknown_without_dock(
+def test_robot_status_available_when_battery_state_unknown_without_dock(
     online_anymal: API,
 ) -> None:
     online_anymal.battery_handler.battery.level = 100.0
     online_anymal.battery_handler.set_battery_state(BatteryStatus.BS_ERROR)
 
-    with pytest.raises(RobotTelemetryNoUpdateException, match="robot is home"):
-        online_anymal.get_robot_status()
+    assert online_anymal.get_robot_status() == RobotStatus.Available
+
+
+def test_unreadable_dock_mission_status_is_not_a_successful_dock(
+    online_anymal: API,
+) -> None:
+    event = _mission_event(settings.DOCK_MISSION_NAME, "OC_SUCCESS")
+    event.mission_summary.status = ANYmalMissionStatus.MS_NA
+    online_anymal.mission_status_handler.last_mission_event = event
+
+    assert not online_anymal.mission_status_handler.last_mission_was_successful_dock()
 
 
 def test_control_lease_request_failure_includes_cause(

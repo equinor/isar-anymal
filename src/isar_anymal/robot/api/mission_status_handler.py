@@ -2,6 +2,7 @@ import logging
 
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotCommunicationException,
+    RobotException,
     RobotMissionStatusException,
     RobotTaskStatusException,
 )
@@ -62,7 +63,10 @@ class MissionStatusHandler:
             return False
         if event.metadata.mission_id != settings.DOCK_MISSION_NAME:
             return False
-        return self.get_mission_status() == MissionStatus.Successful
+        try:
+            return self.get_mission_status() == MissionStatus.Successful
+        except RobotException:
+            return False
 
     def get_mission_status(self, *, stored_mission: bool = False) -> MissionStatus:
         try:

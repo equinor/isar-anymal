@@ -364,12 +364,12 @@ class API:
                 and self.mission_status_handler.last_mission_was_successful_dock()
             ):
                 return True
-        except RobotTelemetryNoUpdateException:
-            if self.mission_status_handler.last_mission_was_successful_dock():
-                return True
-            raise RobotTelemetryNoUpdateException(
-                "Could not determine if robot is home"
-            )
+        except RobotTelemetryNoUpdateException as e:
+            logger.warning(f"{e}, using last dock to determine if robot is home")
+            battery_level: float | None = self.battery_handler.battery.level
+            if battery_level is not None and battery_level < settings.BATTERY_LOW_VALUE:
+                return False
+            return self.mission_status_handler.last_mission_was_successful_dock()
         return False
 
     def get_pose_telemetry_payload(self) -> str:
