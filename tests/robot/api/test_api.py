@@ -9,6 +9,7 @@ from pytest_mock import MockerFixture
 from requests import ConnectionError, HTTPError, RequestException, Timeout
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotCommunicationException,
+    RobotTelemetryNoUpdateException,
 )
 from robot_interface.models.inspection.inspection import Image, ImageMetadata
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
@@ -20,12 +21,14 @@ from isar_anymal.config import settings
 from isar_anymal.robot.api.anymal_api.enums import (
     ANYmalMissionStatus,
     ANYmalTaskStatus,
+    BatteryStatus,
     InspectionMeasurementType,
     Outcome,
     ResultInterpretation,
 )
 from isar_anymal.robot.api.anymal_api.models import (
     InspectionEventDto,
+    MissionEventDto,
     TaskProgressDto,
     TaskSummaryDto,
 )
@@ -180,43 +183,112 @@ def test_visual_inspection() -> None:
     assert inspection_event.measurement.type == InspectionMeasurementType.IMT_VISUAL
 
 
-def test_robot_status_home_when_battery_is_charging_or_full(mocker) -> None:
+@pytest.fixture
+def online_anymal(mocker: MockerFixture) -> API:
     mock_subscribe_callback_functions(mocker)
+    mocker.patch.object(API, "robot_is_online", return_value=True)
+    return API()
 
-    mocker.patch.object(
-        API,
-        "robot_is_online",
-        return_value=True,
+
+def _mission_event(mission_id: str, task_outcome: str) -> MissionEventDto:
+    return MissionEventDto.model_validate(
+        {
+            "timestamp": "now",
+            "metadata": {
+                "robotName": "robot",
+                "missionId": mission_id,
+                "missionRunId": "run",
+                "missionType": "MT_PREDEFINED",
+            },
+            "missionSummary": {
+                "status": "MS_COMPLETED",
+                "outcome": task_outcome,
+                "taskSummaries": [
+                    {
+                        "taskId": "task",
+                        "status": "TS_COMPLETED",
+                        "outcome": task_outcome,
+                        "resultInterpretation": "RI_NA",
+                    }
+                ],
+            },
+        }
     )
 
-    anymal: API = API()
-    anymal.battery_handler.battery.state = BatteryState.Charging
-    anymal.battery_handler.battery.level = 50.0
 
-    robot_status: RobotStatus = anymal.get_robot_status()
-    assert robot_status == RobotStatus.Home
+def test_robot_status_home_when_charging(online_anymal: API) -> None:
+    online_anymal.battery_handler.battery.state = BatteryState.Charging
+    online_anymal.battery_handler.battery.level = 50.0
 
-    anymal.battery_handler.battery.state = BatteryState.Normal
-    anymal.battery_handler.battery.level = 100.0
-    robot_status = anymal.get_robot_status()
-    assert robot_status == RobotStatus.Home
+    assert online_anymal.get_robot_status() == RobotStatus.Home
 
 
-def test_robot_status_not_home_when_battery_is_not_charging_nor_full(mocker) -> None:
-    mock_subscribe_callback_functions(mocker)
-
-    anymal: API = API()
-    anymal.battery_handler.battery.state = BatteryState.Normal
-    anymal.battery_handler.battery.level = 50.0
-
-    mocker.patch.object(
-        API,
-        "robot_is_online",
-        return_value=True,
+@pytest.mark.parametrize(
+    "mission_id, task_outcome, battery_level, expected_status",
+    [
+        (settings.DOCK_MISSION_NAME, "OC_SUCCESS", 100.0, RobotStatus.Home),
+        (settings.DOCK_MISSION_NAME, "OC_SUCCESS", 50.0, RobotStatus.Available),
+        (settings.DOCK_MISSION_NAME, "OC_FAILURE", 100.0, RobotStatus.Available),
+        ("Inspection", "OC_SUCCESS", 100.0, RobotStatus.Available),
+    ],
+)
+def test_robot_status_home_when_not_charging_requires_full_battery_and_dock(
+    online_anymal: API,
+    mission_id: str,
+    task_outcome: str,
+    battery_level: float,
+    expected_status: RobotStatus,
+) -> None:
+    online_anymal.battery_handler.battery.state = BatteryState.Normal
+    online_anymal.battery_handler.battery.level = battery_level
+    online_anymal.mission_status_handler.last_mission_event = _mission_event(
+        mission_id, task_outcome
     )
 
-    robot_status: RobotStatus = anymal.get_robot_status()
-    assert robot_status != RobotStatus.Home
+    assert online_anymal.get_robot_status() == expected_status
+
+
+def test_robot_status_not_home_when_full_without_dock(online_anymal: API) -> None:
+    online_anymal.battery_handler.battery.state = BatteryState.Normal
+    online_anymal.battery_handler.battery.level = 100.0
+
+    assert online_anymal.get_robot_status() == RobotStatus.Available
+
+
+def test_robot_status_home_after_successful_dock_when_battery_state_unknown(
+    online_anymal: API,
+) -> None:
+    online_anymal.battery_handler.set_battery_state(BatteryStatus.BS_ERROR)
+    online_anymal.mission_status_handler.last_mission_event = _mission_event(
+        settings.DOCK_MISSION_NAME, "OC_SUCCESS"
+    )
+
+    assert online_anymal.get_robot_status() == RobotStatus.Home
+
+
+def test_robot_status_raises_when_battery_state_unknown_without_dock(
+    online_anymal: API,
+) -> None:
+    online_anymal.battery_handler.battery.level = 100.0
+    online_anymal.battery_handler.set_battery_state(BatteryStatus.BS_ERROR)
+
+    with pytest.raises(RobotTelemetryNoUpdateException, match="robot is home"):
+        online_anymal.get_robot_status()
+
+
+def test_control_lease_request_failure_includes_cause(
+    mocker: MockerFixture,
+) -> None:
+    mock_subscribe_callback_functions(mocker)
+    anymal = API()
+    mocker.patch.object(
+        anymal.request_handler, "post", side_effect=Timeout("Read timed out")
+    )
+
+    with pytest.raises(RobotCommunicationException) as exc_info:
+        anymal.take_control()
+
+    assert "Read timed out" in exc_info.value.error_description
 
 
 @pytest.mark.parametrize("error_type", [ConnectionError, Timeout, HTTPError])

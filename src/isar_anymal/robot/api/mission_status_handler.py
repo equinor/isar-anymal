@@ -56,6 +56,14 @@ class MissionStatusHandler:
 
         return self._anymal_task_summary_to_task_status(task_status, task_outcome)
 
+    def last_mission_was_successful_dock(self) -> bool:
+        event: MissionEventDto | None = self.last_mission_event
+        if event is None or event.metadata is None:
+            return False
+        if event.metadata.mission_id != settings.DOCK_MISSION_NAME:
+            return False
+        return self.get_mission_status() == MissionStatus.Successful
+
     def get_mission_status(self, *, stored_mission: bool = False) -> MissionStatus:
         try:
             anymal_mission_status: ANYmalMissionStatus = (

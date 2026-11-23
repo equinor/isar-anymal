@@ -8,7 +8,6 @@ from alitra import Frame, MapAlignment, Pose, Position, Transform, align_maps
 from requests import RequestException, Response
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotCommunicationException,
-    RobotException,
     RobotInfeasibleMissionException,
     RobotTelemetryNoUpdateException,
     RobotTelemetryPoseException,
@@ -332,13 +331,8 @@ class API:
                     "Received a robot status call before receiving a protective stop event, will not evaluate protective stop status"
                 )
 
-        try:
-            if self.robot_is_home():
-                return RobotStatus.Home
-        except RobotException:
-            logger.warning(
-                "Could not determine if robot is home, will default to available"
-            )
+        if self.robot_is_home():
+            return RobotStatus.Home
 
         return RobotStatus.Available
 
@@ -362,16 +356,21 @@ class API:
         return False
 
     def robot_is_home(self) -> bool:
-        if self.battery_handler.battery.state is None:
-            raise RobotTelemetryNoUpdateException("Could not get battery state")
-
-        if self.battery_handler.battery.level is None:
-            raise RobotTelemetryNoUpdateException("Could not get battery level")
-
-        if self.battery_handler.battery.state is BatteryState.Charging:
-            return True
-
-        return self.battery_handler.battery.level >= settings.BATTERY_FULL_VALUE
+        try:
+            if self.get_battery_state() is BatteryState.Charging:
+                return True
+            if (
+                self.get_battery_level() >= settings.BATTERY_FULL_VALUE
+                and self.mission_status_handler.last_mission_was_successful_dock()
+            ):
+                return True
+        except RobotTelemetryNoUpdateException:
+            if self.mission_status_handler.last_mission_was_successful_dock():
+                return True
+            raise RobotTelemetryNoUpdateException(
+                "Could not determine if robot is home"
+            )
+        return False
 
     def get_pose_telemetry_payload(self) -> str:
         retry_count: int = 0
