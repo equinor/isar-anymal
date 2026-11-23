@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     TELEMETRY_RETRY_INTERVAL: int = Field(default=5)
 
     # Battery settings
+    BATTERY_LOW_VALUE: float = Field(default=30.0)
     BATTERY_FULL_VALUE: float = Field(default=98.0)
 
     # File retrieval settings
