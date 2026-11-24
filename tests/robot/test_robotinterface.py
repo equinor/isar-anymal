@@ -19,13 +19,12 @@ from robot_interface.models.mission.task import (
 from isar_anymal import Robot
 from tests.robot.utilities import (
     default_robot_pose,
-    mock_file_transfers,
+    mock_environment_api,
     mock_request_handler_for_initiate_mission,
     mock_subscribe_callback_functions,
 )
 
 
-@pytest.mark.requires_private_test_data
 def test_that_initiate_mission_is_successful_for_a_normal_mission(
     mocker: MockerFixture,
 ):
@@ -33,7 +32,7 @@ def test_that_initiate_mission_is_successful_for_a_normal_mission(
     robot: Robot = Robot(
         robot_name="ox", isar_id="00000000-0000-0000-0000-000000000000"
     )
-    mock_file_transfers(robot=robot, mocker=mocker)
+    mock_environment_api(robot.anymal.mission_planner.environment_api, mocker)
     expected_anymal_mission_id: str = mock_request_handler_for_initiate_mission(
         robot=robot
     )
@@ -66,9 +65,15 @@ def test_that_initiate_mission_is_successful_for_a_normal_mission(
     assert robot.current_anymal_mission_id == expected_anymal_mission_id
     assert len(mission.tasks) == len(robot.inspection_handler.inspections_queue)
     assert len(robot.inspection_handler.missions_inspection_queue) == 1
+    assert robot.anymal.mission_status_handler.task_ids == {
+        "id2": "server-task-1",
+        "id3": "server-task-2",
+        "id4": "server-task-3",
+    }
+    assert robot.anymal.mission_status_handler.undock_task_id == "server-task-0"
+    assert robot.inspection_handler.inspections_queue[1][1].endswith("-served")
 
 
-@pytest.mark.requires_private_test_data
 def test_that_return_home_mission_is_started_correctly(
     mocker: MockerFixture,
 ):
@@ -76,7 +81,6 @@ def test_that_return_home_mission_is_started_correctly(
     robot: Robot = Robot(
         robot_name="ox", isar_id="00000000-0000-0000-0000-000000000000"
     )
-    mock_file_transfers(robot=robot, mocker=mocker)
     expected_anymal_mission_id: str = mock_request_handler_for_initiate_mission(
         robot=robot
     )

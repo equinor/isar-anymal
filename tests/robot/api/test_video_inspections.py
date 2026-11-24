@@ -1,9 +1,7 @@
 from collections import deque
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-import yaml
 from alitra import Frame, Position, Transform
 from pytest_mock import MockerFixture
 from robot_interface.models.exceptions.robot_exceptions import (
@@ -28,10 +26,8 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers import (
     inspection_handler,
 )
 from isar_anymal.robot.api.api import API
+from isar_anymal.robot.api.mission_planner import create_action_payload
 from isar_anymal.robot.api.request_handler import RequestHandler
-from isar_anymal.robot.api.utilities.anybotics_file_handler.anymal_ads_file_transfer import (
-    ANYmalADSFileTransfer,
-)
 from tests.robot.utilities import build_acoustic_task, default_robot_pose
 
 
@@ -78,37 +74,11 @@ def video_event() -> Mock:
     )
 
 
-@pytest.fixture
-def file_transfer(tmp_path: Path, mocker: MockerFixture) -> ANYmalADSFileTransfer:
-    transfer = ANYmalADSFileTransfer()
-    transfer.working_folder = f"{tmp_path}/"
-    mocker.patch.object(
-        transfer,
-        "compute_nav_goal_on_waypoints",
-        return_value=(
-            {"x": 1, "y": 2, "z": 3},
-            [{"x": 0, "y": 0, "z": 0, "w": 1}],
-        ),
-    )
-    return transfer
-
-
-def create_video_environment(
-    transfer: ANYmalADSFileTransfer, task: TakeVideo | TakeThermalVideo
-) -> tuple[dict, list[dict]]:
+def create_video_action(task: TakeVideo | TakeThermalVideo) -> dict:
     inspection = API.create_inspection(
         task.robot_pose, task.target, task, API.extract_task_type(task)
     )
-    environment_path, tasks = transfer.add_new_poi(
-        [inspection], waypoint_filepath=Path(transfer.working_folder) / "waypoints.json"
-    )
-    environment = yaml.safe_load(Path(environment_path).read_text())
-    item = next(
-        item
-        for item in environment["objects"]
-        if item["type"] == "visual_inspection_video_recording"
-    )
-    return item, tasks
+    return create_action_payload(inspection["poi"], "video-inspection")
 
 
 def process_video_event(
@@ -147,11 +117,10 @@ def process_video_event(
 def test_video_environment_selects_camera_for_task_type(
     task_class: type[TakeVideo | TakeThermalVideo],
     expected_camera: str,
-    file_transfer: ANYmalADSFileTransfer,
 ) -> None:
     task = build_video_task(task_class)
 
-    item, _ = create_video_environment(file_transfer, task)
+    item = create_video_action(task)["config"]
 
     assert item["camera_type"] == expected_camera
 
@@ -159,12 +128,11 @@ def test_video_environment_selects_camera_for_task_type(
 @pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
 def test_video_environment_preserves_requested_recording_duration(
     task_class: type[TakeVideo | TakeThermalVideo],
-    file_transfer: ANYmalADSFileTransfer,
 ) -> None:
     task = build_video_task(task_class)
     task.duration = 12.5
 
-    item, _ = create_video_environment(file_transfer, task)
+    item = create_video_action(task)["config"]
 
     assert item["recording_duration"] == 12.5
 
@@ -172,11 +140,10 @@ def test_video_environment_preserves_requested_recording_duration(
 @pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
 def test_video_environment_disables_audio_recording(
     task_class: type[TakeVideo | TakeThermalVideo],
-    file_transfer: ANYmalADSFileTransfer,
 ) -> None:
     task = build_video_task(task_class)
 
-    item, _ = create_video_environment(file_transfer, task)
+    item = create_video_action(task)["config"]
 
     assert item["record_audio"] is False
 
@@ -184,37 +151,13 @@ def test_video_environment_disables_audio_recording(
 @pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
 def test_video_environment_preserves_target_position_and_zoom(
     task_class: type[TakeVideo | TakeThermalVideo],
-    file_transfer: ANYmalADSFileTransfer,
 ) -> None:
     task = build_video_task(task_class)
 
-    item, _ = create_video_environment(file_transfer, task)
-
-    assert item["pose"]["pose"]["position"] == {"x": 4, "y": 5, "z": 6}
-    assert item["size"] == {"width": 0.5, "height": 0.75}
-
-
-@pytest.mark.parametrize("task_class", [TakeVideo, TakeThermalVideo])
-def test_video_mission_entry_binds_recording_plugin_to_generated_poi(
-    task_class: type[TakeVideo | TakeThermalVideo],
-    file_transfer: ANYmalADSFileTransfer,
-) -> None:
-    task = build_video_task(task_class)
-    item, tasks = create_video_environment(file_transfer, task)
-
-    entry = file_transfer.create_task_entry(tasks[0])
-
-    assert entry["type"] == (
-        "visual_inspection_video_recording_behavior_plugins::Inspect"
-    )
-    assert entry["settings"] == [
-        {
-            "name": "inspectable_item",
-            "type": "InspectableItem",
-            "value": item["name"],
-        }
-    ]
-    assert entry["name"] == task.id
+    action = create_video_action(task)
+    pose = action["environmentItem"]["pose"]
+    assert [pose[f"position{axis}"] for axis in "XYZ"] == [4, 5, 6]
+    assert action["config"]["size"] == {"width": 0.5, "height": 0.75}
 
 
 @pytest.mark.parametrize("duration", [0, -1, float("nan"), float("inf")])

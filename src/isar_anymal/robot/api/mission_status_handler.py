@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 class MissionStatusHandler:
     def __init__(self) -> None:
         self.last_mission_event: MissionEventDto | None = None
+        self.task_ids: dict[str, str] = {}
+        self.undock_task_id: str = "undock"
         self.mission_status_sse_handler: SSEHandler = SSEHandler()
 
         self.register_update_mission_event_callback()
@@ -40,6 +42,7 @@ class MissionStatusHandler:
         )
 
     def get_task_status(self, task_id: str) -> TaskStatus:
+        task_id = self.task_ids.get(task_id, task_id)
         task_status: ANYmalTaskStatus | None = None
         task_outcome: Outcome | None = None
         task_summaries: list[TaskSummaryDto] = self._get_anymal_task_summaries()
@@ -47,7 +50,7 @@ class MissionStatusHandler:
             if task_summary.task_id == task_id:
                 task_status = task_summary.status
                 task_outcome = task_summary.outcome
-            elif task_summary.task_id == "undock":
+            elif task_summary.task_id == self.undock_task_id:
                 if (
                     task_summary.status == ANYmalTaskStatus.TS_COMPLETED
                     and task_summary.outcome == Outcome.OC_FAILURE

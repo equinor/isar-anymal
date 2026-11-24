@@ -1,8 +1,7 @@
 import logging
-from typing import TypeVar
+import time
 
-from pydantic import BaseModel, ValidationError
-from requests import JSONDecodeError, RequestException, Response
+from requests import RequestException, Response
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotAPIException,
     RobotCommunicationException,
@@ -26,10 +25,11 @@ from isar_anymal.robot.api.anymal_api.models import (
     SetUserInteractionModeResponseDto,
 )
 from isar_anymal.robot.api.request_handler import RequestHandler
+from isar_anymal.robot.api.request_handler import (
+    parse_response as _parse_response_into_model,
+)
 
 logger = logging.getLogger(__name__)
-
-TModel = TypeVar("TModel", bound=BaseModel)
 
 
 class ANYmalAPI:
@@ -181,6 +181,7 @@ class ANYmalAPI:
         mission_id: str,
         lease_id: str,
         starting_task_id: str = "",
+        wait_for_sync: bool = False,
     ) -> ControlMissionResponseDto:
         request_body: dict = {
             "missionDescription": {
@@ -189,23 +190,51 @@ class ANYmalAPI:
             }
         }
 
-        try:
-            response: Response = self.request_handler.post(
-                url=f"{settings.SERVER_URL}/anymal-api/mission/start-predefined",
-                json_body=request_body,
-                params={"leaseId": lease_id, "anymal": settings.ROBOT_NAME},
+        deadline = time.monotonic() + settings.MISSION_SYNC_TIMEOUT
+        while True:
+            timeout = settings.API_REQUEST_TIMEOUT
+            if wait_for_sync:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RobotAPIException(
+                        f"Mission {mission_id} did not synchronize to the robot "
+                        f"within {settings.MISSION_SYNC_TIMEOUT} seconds"
+                    )
+                timeout = min(timeout, remaining)
+            try:
+                response: Response = self.request_handler.post(
+                    url=f"{settings.SERVER_URL}/anymal-api/mission/start-predefined",
+                    json_body=request_body,
+                    params={"leaseId": lease_id, "anymal": settings.ROBOT_NAME},
+                    request_timeout=timeout,
+                )
+            except RequestException as e:
+                # A timeout may mean the mission started. Never retry an ambiguous start.
+                raise RobotCommunicationException(
+                    error_description="API request to start mission failed"
+                ) from e
+
+            start_response = _parse_response_into_model(
+                response=response, model_type=ControlMissionResponseDto
             )
-        except RequestException as e:
-            raise RobotCommunicationException(
-                error_description="API request to start mission failed"
-            ) from e
-
-        start_response: ControlMissionResponseDto = _parse_response_into_model(
-            response=response, model_type=ControlMissionResponseDto
-        )
-
-        _raise_if_response_not_successful(start_response)
-        return start_response
+            if (
+                wait_for_sync
+                and start_response.status == ANYmalServiceCallStatus.ASCS_OK
+                and start_response.control_mission_status
+                == ControlMissionStatus.CMS_ERROR_MISSION_UNKNOWN
+            ):
+                logger.warning(
+                    "Mission %s is not yet available on the robot", mission_id
+                )
+                time.sleep(
+                    min(
+                        settings.MISSION_SYNC_RETRY_INTERVAL,
+                        max(0, deadline - time.monotonic()),
+                    )
+                )
+                continue
+            _raise_if_response_not_successful(start_response)
+            return start_response
 
     def pause_mission(
         self, mission_run_uid: str, lease_id: str
@@ -249,30 +278,6 @@ class ANYmalAPI:
 
         _raise_if_response_not_successful(response=resume_response)
         return resume_response
-
-
-def _parse_response_into_model[TModel: BaseModel](
-    response: Response, model_type: type[TModel]
-) -> TModel:
-    try:
-        payload: dict = response.json()
-    except JSONDecodeError as e:
-        error_description_decode_json: str = (
-            f"Failed to decode JSON response when requesting model type {model_type.__name__} through ANYmal API. "
-            f"The response content was: {response.content}"
-        )
-        logger.exception(error_description_decode_json)
-        raise RobotAPIException(error_description_decode_json) from e
-
-    try:
-        return model_type.model_validate(payload)
-    except ValidationError as e:
-        error_description_validation: str = (
-            f"A validation error occurred when parsing into object of type {model_type.__name__} "
-            f"from ANYmal API. The JSON attempted parsed was: {response.json()}"
-        )
-        logger.exception(error_description_validation)
-        raise RobotAPIException(error_description_validation) from e
 
 
 def _raise_if_response_not_successful(response: ControlMissionResponseDto) -> None:

@@ -8,10 +8,8 @@ TEST_DATA_DIR = Path(__file__).parent / "robot" / "test_data"
 
 TEST_DATA_BLOBS = [
     "concentration_monitoring_example.json",
-    "environment.yaml",
     "inspection_acoustic_event_example.json",
     "inspection_visual_example.json",
-    "waypoints.json",
 ]
 
 

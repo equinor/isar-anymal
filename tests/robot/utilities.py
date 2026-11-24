@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import Mock
 
 from alitra import Frame, Orientation, Pose, Position
@@ -11,6 +10,7 @@ from robot_interface.models.mission.task import (
 )
 
 from isar_anymal import Robot
+from isar_anymal.config import settings
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.battery_handler import (
     BatteryHandler,
 )
@@ -26,14 +26,18 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.main_body_state
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.pose_handler import (
     PoseHandler,
 )
-from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
-from isar_anymal.robot.api.utilities.anybotics_file_handler.anymal_ads_file_transfer import (
-    ANYmalADSFileTransfer,
+from isar_anymal.robot.api.environment_api import EnvironmentAPI
+from isar_anymal.robot.api.environment_api.models import (
+    Action,
+    NavigationGoal,
+    Resource,
+    WaypointGraph,
 )
+from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 
 
 def _mock_response_object(
-    json_return_value: dict, status_code: int = 200, text: str = ""
+    json_return_value: dict | list, status_code: int = 200, text: str = ""
 ) -> Mock:
     mock_response: Mock = Mock(spec=Response)
     mock_response.json.return_value = json_return_value
@@ -97,34 +101,64 @@ def mock_subscribe_callback_functions(mocker: MockerFixture) -> None:
     )
 
 
-def mock_file_transfers(robot: Robot, mocker: MockerFixture) -> None:
-    test_data_dir: Path = Path(__file__).parent / "test_data"
-    environment_path: str = str(test_data_dir / "environment.yaml")
-    waypoint_path: str = str(test_data_dir / "waypoints.json")
+def waypoint_graph_payload() -> dict:
+    return {
+        "nodes": [
+            {
+                "id": name,
+                "frameId": "map",
+                "mapId": "map-id",
+                "positionX": x,
+                "positionY": 0,
+                "positionZ": z,
+                "orientationX": 0,
+                "orientationY": 0,
+                "orientationZ": 0,
+                "orientationW": 1,
+            }
+            for name, x, z in [("a", 0, 0), ("b", 10, 10)]
+        ],
+        "edges": [{"id": "edge", "startPose": {"id": "a"}, "endPose": {"id": "b"}}],
+    }
 
-    mocker.patch.object(
-        ANYmalADSFileTransfer,
-        "get_environment_file",
-        return_value=environment_path,
-    )
-    mocker.patch.object(
-        ANYmalADSFileTransfer,
-        "get_waypoint_file",
-        return_value=waypoint_path,
-    )
 
+def mock_environment_api(api: EnvironmentAPI, mocker: MockerFixture) -> None:
+    mocker.patch.object(settings, "MISSION_SYNC_DELAY", 0)
+    mocker.patch.object(api, "list_resources", return_value=[])
     mocker.patch.object(
-        ANYmalADSFileTransfer,
-        "send_environment_file",
-        return_value=True,
+        api,
+        "get_waypoint_graph",
+        return_value=WaypointGraph.model_validate(waypoint_graph_payload()),
     )
     mocker.patch.object(
-        ANYmalADSFileTransfer,
-        "send_mission_file",
-        return_value=True,
+        api,
+        "create_navigation_goal",
+        side_effect=lambda body: NavigationGoal(
+            id=f"{body['label']}-id",
+            label=body["label"],
+            name=f"{body['label']}-served",
+        ),
     )
-
-    robot.anymal.file_transfer_handler.working_folder = str(test_data_dir) + "/"
+    mocker.patch.object(
+        api,
+        "create_action",
+        side_effect=lambda body: Action.model_validate(
+            {"id": f"{body['label']}-id", **body}
+        ),
+    )
+    mocker.patch.object(
+        api,
+        "create_mission",
+        side_effect=lambda label: Resource(id="generated-mission", label=label),
+    )
+    mocker.patch.object(
+        api,
+        "create_tasks",
+        side_effect=lambda mission_id, tasks: [
+            Resource(id=f"server-task-{index}", label=task["label"])
+            for index, task in enumerate(tasks)
+        ],
+    )
 
 
 def mock_request_handler_for_initiate_mission(robot: Robot) -> str:

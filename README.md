@@ -8,13 +8,61 @@ Running the full ISAR system requires an installation of a robot which satisfies
 [interface](https://github.com/equinor/isar/blob/main/src/robot_interface/robot_interface.py). isar-anymal is an
 implementation for the ANYmal robot.
 
+## Mission preparation
+
+Ad-hoc missions use the [Environment API](https://anymal.docs.anymal.com/openapi/environment-api.html)
+instead of transferring files through ADS. The integration reads the map's waypoint
+graph, projects observation poses onto its edges, and creates navigation goals,
+inspection actions with environment items, and an ordered mission. All mission tasks
+are submitted in one request. Undocking and the last inspection abort on failure;
+intermediate inspections continue on failure, as before.
+
+The Environment API is served at `ANYMAL_SERVER_URL/environment-api`, alongside
+the existing robot-control and Data Navigator APIs. It uses the same server and
+bearer token, authenticated with `ANYMAL_API_EMAIL` and `ANYMAL_API_PASSWORD`;
+no separate API URL is needed.
+Configure `ANYMAL_ENVIRONMENT_MAP_ID` with the server's map ID.
+`ANYMAL_MAP_NAME` still selects the local coordinate alignment and must correspond
+to the configured server map. The map ID is required for ad-hoc missions,
+not for executing stored missions.
+
+ANYbotics synchronizes server changes to connected robots automatically, normally
+within a few seconds. `ANYMAL_MISSION_SYNC_DELAY` (default 5 seconds) allows resources
+to settle before starting. A newly created mission that returns
+`CMS_ERROR_MISSION_UNKNOWN` is retried every `ANYMAL_MISSION_SYNC_RETRY_INTERVAL`
+(default 5 seconds), for up to `ANYMAL_MISSION_SYNC_TIMEOUT` (default 60 seconds).
+Other failures, including ambiguous HTTP timeouts, are not retried. There is no
+robot-readiness endpoint in the supplied Environment API contract: a successful
+server write alone does not prove the full mission has synchronized.
+
+Generated resources reserve the label prefix `ISAR-<robot-name-length>-<robot-name>-`.
+Do not use that prefix for manually authored resources or run multiple mission
+planners for the same robot and map. Before the next ad-hoc mission, old resources
+in that namespace are deleted in dependency order, without forcing deletion of
+referenced resources. Partial creation failures trigger the same cleanup; remaining
+resources are discoverable after a restart. Stored missions and other labels are
+not modified.
+
+Server-generated task IDs are mapped back to ISAR tasks. Inspection events are
+matched against the returned action configuration name, or the navigation goal's
+served `name` for CO2 measurements. A CO2 goal without a served name fails preparation
+explicitly rather than starting a mission whose results cannot be correlated.
+Robot-backed acceptance must verify these IDs/names, undocking, failure semantics,
+and synchronization for the deployed ANYmal version before rollout.
+
+ADS containers, CLI credentials, file mounts, and image publishing are no longer
+needed. Existing deployments in `equinor/robotics-infrastructure` must separately
+remove the ADS workload and obsolete configuration and add the Environment API
+settings before deploying this version. Inspection retrieval still uses
+Data Navigator; migration to Shift is a separate change.
+
 ## Video inspections
 
 `take_video` and `take_thermal_video` record normal-camera and thermal-camera video,
 respectively. Both tasks require a robot pose, target position, and a finite, positive
 `duration` in seconds. Optional zoom dimensions control the target size.
 
-The integration generates `visual_inspection_video_recording` objects and executes
+The integration creates `visual_inspection_video_recording` actions and executes
 `visual_inspection_video_recording_behavior_plugins::Inspect`, which must be available
 on the robot. Audio recording is disabled. Results are retrieved through data-navigator
 and returned as ISAR `Video` or `ThermalVideo` inspections with the actual recorded

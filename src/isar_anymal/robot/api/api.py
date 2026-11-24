@@ -12,7 +12,6 @@ from robot_interface.models.exceptions.robot_exceptions import (
     RobotInfeasibleMissionException,
     RobotTelemetryNoUpdateException,
     RobotTelemetryPoseException,
-    RobotUnknownErrorException,
 )
 from robot_interface.models.mission.mission import Mission
 from robot_interface.models.mission.status import MissionStatus, RobotStatus, TaskStatus
@@ -45,13 +44,12 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.main_body_state
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.pose_handler import (
     PoseHandler,
 )
+from isar_anymal.robot.api.environment_api import EnvironmentAPI
 from isar_anymal.robot.api.media_stream import MediaStream
+from isar_anymal.robot.api.mission_planner import MissionPlanner, PreparedMission
 from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.request_handler import RequestHandler
 from isar_anymal.robot.api.utilities.acoustic_roi import resolve_acoustic_roi
-from isar_anymal.robot.api.utilities.anybotics_file_handler.anymal_ads_file_transfer import (
-    ANYmalADSFileTransfer,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +75,8 @@ class API:
         )
 
         self.media_stream = MediaStream(request_handler=self.request_handler)
-        self.file_transfer_handler: ANYmalADSFileTransfer = ANYmalADSFileTransfer(
-            mission_creation=True
+        self.mission_planner = MissionPlanner(
+            EnvironmentAPI(request_handler=self.request_handler)
         )
 
     def take_control(self) -> str:
@@ -99,27 +97,18 @@ class API:
         finally:
             self.release_control(lease_id=lease_id)
 
-    def prepare_mission_plan(self, mission: Mission) -> tuple[str | None, list | None]:
-        """Prepare a mission plan and adjust the environment file on the robot
-        to be capable of running the given mission."""
+    def prepare_mission_plan(self, mission: Mission) -> PreparedMission:
+        """Create map resources and a mission that synchronize to the robot."""
         inspections: list[dict] = self.convert_tasks_to_anymal_inspections(
             tasks=mission.tasks
         )
-
-        try:
-            mission_id: str | None
-            mission_tasks: list | None
-            mission_id, mission_tasks = (
-                self.file_transfer_handler.create_ad_hoc_inspections(
-                    inspections=inspections
-                )
-            )
-            time.sleep(settings.ENVIRONMENT_FILE_SYNC_DELAY)
-            return mission_id, mission_tasks
-        except Exception:
-            error_description: str = "Failed to prepare mission plan"
-            logger.exception(error_description)
-            raise RobotUnknownErrorException(error_description)
+        plan = self.mission_planner.prepare(inspections)
+        self.mission_status_handler.task_ids = {
+            label: task.task_id for label, task in plan.tasks.items()
+        }
+        self.mission_status_handler.undock_task_id = plan.undock_task_id
+        time.sleep(settings.MISSION_SYNC_DELAY)
+        return plan
 
     def convert_tasks_to_anymal_inspections(self, tasks: list[TASKS]) -> list[dict]:
         inspections: list[dict] = []
@@ -231,7 +220,7 @@ class API:
 
         return task_type
 
-    def start_mission(self, mission_id: str) -> str:
+    def start_mission(self, mission_id: str, *, wait_for_sync: bool = False) -> str:
         lease_id: str = self.take_control()
 
         logger.info("Attempting to start mission")
@@ -245,6 +234,7 @@ class API:
                 self.anymal_api.start_predefined_mission(
                     mission_id=mission_id,
                     lease_id=lease_id,
+                    wait_for_sync=wait_for_sync,
                 )
             )
         finally:

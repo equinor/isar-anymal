@@ -6,7 +6,6 @@ from threading import Thread
 from robot_interface.mission_recording import MissionRecorder
 from robot_interface.models.exceptions.robot_exceptions import (
     RobotException,
-    RobotInfeasibleMissionException,
     RobotMissionStatusException,
     RobotTaskStatusException,
     RobotUnknownErrorException,
@@ -27,6 +26,7 @@ from isar_anymal.robot.api.anymal_api.models import MissionEventDto
 from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_handler import (
     InspectionHandler,
 )
+from isar_anymal.robot.api.mission_planner import PreparedMission
 from isar_anymal.robot.recording.livekit_capture import capture_livekit
 from isar_anymal.robot.recording.mission_recorder import AnymalMissionRecorder
 
@@ -90,29 +90,26 @@ class Robot(RobotInterface):
         self.current_anymal_mission_id = None
         self.current_isar_mission_id = None
         self.anymal.mission_status_handler.last_mission_event = None
+        self.anymal.mission_status_handler.task_ids = {}
+        self.anymal.mission_status_handler.undock_task_id = "undock"
 
         self.return_to_home_mission_running = False
         self.stored_mission_running = False
         mission_id: str | None = mission.robot_mission_id
-        anymal_mission_tasks: list | None = None
+        plan: PreparedMission | None = None
         if mission_id is None:
-            mission_id, anymal_mission_tasks = self.anymal.prepare_mission_plan(
-                mission=mission
-            )
-            if mission_id is None or anymal_mission_tasks is None:
-                error_message = "Failed to prepare mission plan."
-                logger.error(error_message)
-                raise RobotInfeasibleMissionException(error_message)
+            plan = self.anymal.prepare_mission_plan(mission=mission)
+            mission_id = plan.mission_id
 
         if settings.AUTO_DISABLE_PROTECTIVE_STOP:
             self.anymal.disengage_protective_stop()
 
         self.current_anymal_mission_id = self.anymal.start_mission(
-            mission_id=mission_id
+            mission_id=mission_id, wait_for_sync=plan is not None
         )
         self.current_isar_mission_id = mission.id
 
-        if mission.robot_mission_id is not None:
+        if plan is None:
             self.stored_mission_running = True
             return
 
@@ -120,24 +117,16 @@ class Robot(RobotInterface):
             (self.current_anymal_mission_id, mission)
         )
         for task in mission.tasks:
-            anymal_point_of_interest_name: list[str] = [
-                anymal_task["name"]
-                for anymal_task in anymal_mission_tasks
-                if anymal_task["label"] == task.id
-            ]
-            if len(anymal_point_of_interest_name) != 1:
-                logger.error(
-                    f"Failed to find task name for task {task.id}. Will not upload data for this task."
-                )
-                continue
             self.inspection_handler.inspections_queue.append(
-                (task, anymal_point_of_interest_name[0])
+                (task, plan.tasks[task.id].asset_name)
             )
 
     def initiate_return_home(self, mission_id: str) -> None:
         logger.info(f"Received request to return home with ID {mission_id}")
 
         self.anymal.mission_status_handler.last_mission_event = None
+        self.anymal.mission_status_handler.task_ids = {}
+        self.anymal.mission_status_handler.undock_task_id = "undock"
         self.stored_mission_running = False
         self.current_anymal_mission_id = self.anymal.start_dock_mission()
         self.current_isar_mission_id = mission_id
