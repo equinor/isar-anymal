@@ -34,13 +34,10 @@ class Settings(BaseSettings):
 
     # Server settings
     SERVER_URL: str = Field(default="http://localhost:11314")
-    ADS_SERVER_URL: str = Field(default="http://0.0.0.0:8081")
-
-    # File transfer
-    ENVIRONMENT_NAME: str = Field(default="northern_lights")
-    ENVIRONMENT_FILE_NAME: str = Field(default="environment.yaml")
-    ENVIRONMENT_FILE_SYNC_DELAY: int = Field(default=5)
-    ENVIRONMENT_FILE_WORKING_FOLDER: str = Field(default="/app/data/")
+    ENVIRONMENT_MAP_ID: str = Field(default="")
+    MISSION_SYNC_DELAY: float = Field(default=5, ge=0, allow_inf_nan=False)
+    MISSION_SYNC_TIMEOUT: float = Field(default=60, gt=0, allow_inf_nan=False)
+    MISSION_SYNC_RETRY_INTERVAL: float = Field(default=5, gt=0, allow_inf_nan=False)
 
     # How to treat the protective stop
     AUTO_DISABLE_PROTECTIVE_STOP: bool = Field(default=True)
@@ -56,10 +53,6 @@ class Settings(BaseSettings):
     # Battery settings
     BATTERY_LOW_VALUE: float = Field(default=30.0)
     BATTERY_FULL_VALUE: float = Field(default=98.0)
-
-    # File retrieval settings
-    FILE_RETRIEVAL_NUM_RETRIES: int = Field(default=10)
-    FILE_RETRIEVAL_RETRY_INTERVAL: int = Field(default=10)
 
     model_config = SettingsConfigDict(
         env_prefix="ANYMAL_",

@@ -44,32 +44,9 @@ jobs:
       use_oidc: true
       azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-  build-and-push-ads-image-to-robotics-dev-registry:
-    name: Build and push ads image to robotics dev container registry
-    needs: get-short-sha
-    uses: equinor/armada/.github/workflows/build_and_publish_docker_image_to_container_registry.yml@main
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    with:
-      registry: roboticsdevacr.azurecr.io
-      image_name: robotics/ads-api
-      tag: ${{ needs.get-short-sha.outputs.tag }}
-      secondary_tag: dev
-      # ads-api installs licensed ANYbotics packages; ACR only.
-      path_to_dockerfile: ads_api/Dockerfile
-      path_to_context: ads_api
-      environment: Development
-      use_oidc: true
-      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-    secrets:
-      anymal_download_password: ${{ secrets.ANYMAL_DOWNLOAD_PASSWORD }}
-      anymal_download_username: ${{ secrets.ANYMAL_DOWNLOAD_USER_NAME }}
-
   deploy:
     name: Update deployment in Development
-    needs: [get-short-sha, build-and-push-dev-image-to-robotics-dev-registry, build-and-push-ads-image-to-robotics-dev-registry]
+    needs: [get-short-sha, build-and-push-dev-image-to-robotics-dev-registry]
     uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
     with:
       environment: development

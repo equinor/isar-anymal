@@ -48,9 +48,6 @@ jobs:
   copy-images-to-robotics-prod-registry:
     name: Copy staging images to robotics prod registry
     needs: get_staging_version
-    strategy:
-      matrix:
-        image_name: ['robotics/isar-anymal', 'robotics/ads-api']
     permissions:
       contents: read
       # Declared by the shared workflow for its OIDC path; a called
@@ -60,7 +57,7 @@ jobs:
     with:
       source_registry: roboticsstagingacr.azurecr.io
       destination_registry: roboticsprodacr.azurecr.io
-      image_name: ${{ matrix.image_name }}
+      image_name: robotics/isar-anymal
       tag: ${{ needs.get_staging_version.outputs.versionTag }}
       # Authenticate to both registries with a federated credential
       # instead of the registry passwords. The identity holds AcrPull
@@ -74,17 +71,11 @@ jobs:
     name: Update deployment in Production
     needs: [get_staging_version, copy-images-to-robotics-prod-registry]
     uses: equinor/armada/.github/workflows/update_kubernetes_deployment.yml@main
-    strategy:
-      max-parallel: 1
-      matrix:
-        include:
-          - image_name: robotics/isar-anymal
-          - image_name: robotics/ads-api
     with:
       environment: production
       tag: ${{ needs.get_staging_version.outputs.versionTag }}
       registry: roboticsprodacr.azurecr.io
-      image_name: ${{ matrix.image_name }}
+      image_name: robotics/isar-anymal
       author_name: ${{ github.actor }}
       infrastructure_repository: equinor/robotics-infrastructure
       kustomization_base_path: k8s_kustomize/robotics/overlays

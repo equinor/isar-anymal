@@ -21,6 +21,7 @@ from isar_anymal.robot.api.anymal_api.server_sent_event_handlers.inspection_hand
     InspectionHandler,
 )
 from isar_anymal.robot.api.api import API
+from isar_anymal.robot.api.mission_planner import PreparedMission, PreparedTask
 from isar_anymal.robot.api.mission_status_handler import MissionStatusHandler
 from isar_anymal.robot.api.request_handler import RequestHandler
 from tests.robot.utilities import build_acoustic_task
@@ -60,7 +61,7 @@ def _response(payload: dict) -> Mock:
 
 
 @pytest.mark.parametrize("start_status", ["CMS_OK", "CMS_ERROR_MISSION_UNKNOWN"])
-def test_stored_start_bypasses_ads_and_releases_control(
+def test_stored_start_bypasses_preparation_and_releases_control(
     robot: Robot, mocker: MockerFixture, start_status: str
 ) -> None:
     mocker.patch.object(settings, "AUTO_DISABLE_PROTECTIVE_STOP", True)
@@ -218,12 +219,16 @@ def test_normal_mission_after_stored_mission_still_prepares_inspections(
     prepare = mocker.patch.object(
         robot.anymal,
         "prepare_mission_plan",
-        return_value=("generated-plan", [{"name": "inspection", "label": task.id}]),
+        return_value=PreparedMission(
+            mission_id="generated-plan",
+            tasks={task.id: PreparedTask("server-task", "inspection")},
+            undock_task_id="server-undock",
+        ),
     )
     start = mocker.patch.object(robot.anymal, "start_mission", return_value="new-run")
     robot.initiate_mission(mission)
     prepare.assert_called_once_with(mission=mission)
-    start.assert_called_once_with(mission_id="generated-plan")
+    start.assert_called_once_with(mission_id="generated-plan", wait_for_sync=True)
     assert not robot.stored_mission_running
     assert list(robot.inspection_handler.inspections_queue) == [(task, "inspection")]
     assert list(robot.inspection_handler.missions_inspection_queue) == [

@@ -4,8 +4,10 @@ import warnings
 from typing import Any
 
 import requests
+from pydantic import BaseModel, ValidationError
 from requests.exceptions import HTTPError, RequestException
 from requests.models import Response
+from robot_interface.models.exceptions.robot_exceptions import RobotAPIException
 
 from isar_anymal.config import settings
 
@@ -83,16 +85,18 @@ class RequestHandler:
         try:
             response.raise_for_status()
         except HTTPError as e:
-            response_dict: dict = e.response.json()
-
             try:
-                error_message = response_dict["message"]
-                raise RequestException(error_message)
-            except KeyError:
-                logger.exception(
-                    f"Http error. Http status code= {response.status_code}. Http response body= {response.json()}"
-                )
-                raise e
+                payload = response.json()
+            except requests.JSONDecodeError:
+                payload = response.text
+            message = (
+                payload.get("message", payload.get("detail", payload))
+                if isinstance(payload, dict)
+                else payload
+            )
+            raise RequestException(
+                f"HTTP {response.status_code}: {message}", response=response
+            ) from e
         return response
 
     def get(
@@ -138,3 +142,23 @@ class RequestHandler:
             params=params,
             **kwargs,
         )
+
+    def delete(self, url: str) -> Response:
+        return self._base_request(
+            url=url,
+            method="DELETE",
+            headers=None,
+            timeout=settings.API_REQUEST_TIMEOUT,
+            json_body=None,
+        )
+
+
+def parse_response[TModel: BaseModel](
+    response: Response, model_type: type[TModel]
+) -> TModel:
+    try:
+        return model_type.model_validate(response.json())
+    except (requests.JSONDecodeError, ValidationError) as e:
+        message = f"Invalid API response for {model_type.__name__}: {e}"
+        logger.exception(message)
+        raise RobotAPIException(message) from e
